@@ -1,8 +1,8 @@
 {
-  "token_hmac_secret_key": "CHANGE_THIS_SECRET_KEY",
-  "admin_password": "CHANGE_THIS_PASSWORD",
-  "admin_secret": "CHANGE_THIS_ADMIN_SECRET",
-  "api_key": "CHANGE_THIS_API_KEY",
+  "token_hmac_secret_key": "worklab_centrifugo_secret_key_2024",
+  "admin_password": "worklab_admin_2024",
+  "admin_secret": "worklab_admin_secret_2024",
+  "api_key": "worklab_centrifugo_api_key_2024",
   "allowed_origins": ["*"],
   "websocket_compression": true,
   "websocket_compression_threshold": 1024,
