@@ -10,8 +10,13 @@ class CentrifugoService {
   constructor() {
     this.centrifugoUrl = process.env.CENTRIFUGO_URL || CENTRIFUGO.DEFAULT_URL;
     this.apiUrl = process.env.CENTRIFUGO_API_URL || CENTRIFUGO.API_URL;
-    this.apiKey = process.env.CENTRIFUGO_API_KEY || 'worklab_api_key_2024';
-    this.secret = process.env.CENTRIFUGO_SECRET || 'worklab_secret_key_2024';
+    this.apiKey = process.env.CENTRIFUGO_API_KEY;
+    this.secret = process.env.CENTRIFUGO_SECRET;
+    
+    if (!this.apiKey || !this.secret) {
+      console.error('❌ Centrifugo API key or secret not configured');
+      throw new Error('Centrifugo configuration missing');
+    }
     
     this.client = new Client({
       url: this.apiUrl,
@@ -69,7 +74,7 @@ class CentrifugoService {
   async getHistory(channel, options = {}) {
     try {
       const history = await this.client.history(channel, options);
-      return history.publications || [];
+      return history && history.publications ? history.publications : [];
     } catch (error) {
       console.error('Error getting history via Centrifugo:', error);
       throw new ExternalServiceError('Centrifugo', 'Failed to get history');

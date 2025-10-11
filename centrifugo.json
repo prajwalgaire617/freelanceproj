@@ -1,8 +1,8 @@
 {
-  "token_hmac_secret_key": "worklab_secret_key_2024",
-  "admin_password": "admin123",
-  "admin_secret": "admin_secret_2024",
-  "api_key": "worklab_api_key_2024",
+  "token_hmac_secret_key": "CHANGE_THIS_SECRET_KEY",
+  "admin_password": "CHANGE_THIS_PASSWORD",
+  "admin_secret": "CHANGE_THIS_ADMIN_SECRET",
+  "api_key": "CHANGE_THIS_API_KEY",
   "allowed_origins": ["*"],
   "websocket_compression": true,
   "websocket_compression_threshold": 1024,
