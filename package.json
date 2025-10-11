@@ -4,15 +4,16 @@
   "description": "WorkLab Backend API - Upwork Clone",
   "main": "src/app.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "nodemon src/app.js",
     "start": "node src/app.js",
-    "setup-db": "node scripts/setup-db.js",
     "migrate": "sequelize-cli db:migrate --config src/db/config/config.json --migrations-path src/db/migrations",
     "migrate:undo": "sequelize-cli db:migrate:undo --config src/db/config/config.json --migrations-path src/db/migrations",
     "migrate:undo:all": "sequelize-cli db:migrate:undo:all --config src/db/config/config.json --migrations-path src/db/migrations",
     "seed": "sequelize-cli db:seed:all --config src/db/config/config.json --seeders-path src/db/seeders",
-    "db:reset": "npm run migrate:undo:all && npm run migrate && npm run seed"
+    "db:reset": "npm run migrate:undo:all && npm run migrate && npm run seed",
+    "centrifugo": "./start-centrifugo.sh",
+    "dev:full": "concurrently \"npm run centrifugo\" \"npm run dev\"",
+    "clean": "rm -rf node_modules package-lock.json && npm install"
   },
   "keywords": [
     "upwork",
@@ -28,6 +29,7 @@
     "bcryptjs": "^2.4.3",
     "bull": "^4.16.5",
     "bullmq": "^5.45.2",
+    "centrifuge": "^5.4.0",
     "cors": "^2.8.5",
     "crypto": "^1.0.1",
     "dotenv": "^16.3.1",
@@ -39,6 +41,7 @@
     "helmet": "^7.1.0",
     "html-pdf": "^3.0.1",
     "html-pdf-node": "^1.0.8",
+    "jscent": "^0.2.1",
     "jsonwebtoken": "^9.0.2",
     "jspdf": "^2.5.2",
     "mongoose": "^8.0.3",
@@ -56,15 +59,15 @@
     "pg-hstore": "^2.3.4",
     "puppeteer": "^23.11.1",
     "sequelize": "^6.37.5",
-    "socket.io": "^4.7.4",
-    "socket.io-client": "^4.8.1",
     "stripe": "^14.21.0",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
     "uuid": "^11.0.5",
+    "ws": "^8.18.3",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "concurrently": "^9.2.1",
     "nodemon": "^3.1.0",
     "sequelize-cli": "^6.6.2"
   }

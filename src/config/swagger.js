@@ -617,6 +617,96 @@ const options = {
               description: 'ID of the conversation partner'
             }
           }
+        },
+        CentrifugoToken: {
+          type: 'object',
+          required: ['userId'],
+          properties: {
+            userId: { 
+              type: 'integer', 
+              example: 1, 
+              description: 'ID of the user requesting the token' 
+            },
+            userInfo: { 
+              type: 'object', 
+              example: { firstName: 'John', lastName: 'Doe', email: 'john@example.com' },
+              description: 'Additional user information to include in the token'
+            }
+          }
+        },
+        CentrifugoMessage: {
+          type: 'object',
+          required: ['senderId', 'receiverId', 'content'],
+          properties: {
+            senderId: { 
+              type: 'integer', 
+              example: 1, 
+              description: 'ID of the user sending the message' 
+            },
+            receiverId: { 
+              type: 'integer', 
+              example: 2, 
+              description: 'ID of the user receiving the message' 
+            },
+            content: { 
+              type: 'string', 
+              example: 'Hello! I am interested in your project.', 
+              description: 'Message content' 
+            },
+            messageType: { 
+              type: 'string', 
+              enum: ['text', 'image', 'file', 'system'], 
+              default: 'text', 
+              example: 'text', 
+              description: 'Type of message being sent' 
+            },
+            attachments: { 
+              type: 'array', 
+              items: { type: 'string' }, 
+              example: [], 
+              description: 'Array of attachment URLs or IDs' 
+            }
+          }
+        },
+        CentrifugoChannel: {
+          type: 'object',
+          properties: {
+            name: { 
+              type: 'string', 
+              example: 'chat:conversation:1_2', 
+              description: 'Channel name' 
+            },
+            publish: { 
+              type: 'boolean', 
+              example: true, 
+              description: 'Whether publishing is allowed' 
+            },
+            subscribe_to_publish: { 
+              type: 'boolean', 
+              example: true, 
+              description: 'Whether subscription is required for publishing' 
+            },
+            presence: { 
+              type: 'boolean', 
+              example: true, 
+              description: 'Whether presence is enabled' 
+            },
+            join_leave: { 
+              type: 'boolean', 
+              example: true, 
+              description: 'Whether join/leave events are enabled' 
+            },
+            history_size: { 
+              type: 'integer', 
+              example: 50, 
+              description: 'Maximum number of messages to keep in history' 
+            },
+            history_ttl: { 
+              type: 'string', 
+              example: '7d', 
+              description: 'Time to live for message history' 
+            }
+          }
         }
       }
     },
@@ -669,6 +759,229 @@ const options = {
                 'application/json': {
                   schema: {
                     $ref: '#/components/schemas/Error'
+                  }
+                }
+              }
+            }
+          }
+        },
+        '/api/centrifugo/token': {
+          post: {
+            tags: ['Centrifugo'],
+            summary: 'Generate Centrifugo Token',
+            description: 'Generate a JWT token for authenticating with the Centrifugo real-time server',
+            requestBody: {
+              required: true,
+              content: {
+                'application/json': {
+                  schema: {
+                    $ref: '#/components/schemas/CentrifugoToken'
+                  }
+                }
+              }
+            },
+            responses: {
+              '200': {
+                description: 'Token generated successfully',
+                content: {
+                  'application/json': {
+                    schema: {
+                      type: 'object',
+                      properties: {
+                        success: { type: 'boolean', example: true },
+                        token: { type: 'string', example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' },
+                        centrifugoUrl: { type: 'string', example: 'ws://localhost:8000/connection/websocket' }
+                      }
+                    }
+                  }
+                }
+              },
+              '400': {
+                description: 'Bad request - User ID required',
+                content: {
+                  'application/json': {
+                    schema: {
+                      $ref: '#/components/schemas/Error'
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        '/api/centrifugo/send-message': {
+          post: {
+            tags: ['Centrifugo'],
+            summary: 'Send Message via Centrifugo',
+            description: 'Send a real-time message through Centrifugo channels',
+            requestBody: {
+              required: true,
+              content: {
+                'application/json': {
+                  schema: {
+                    $ref: '#/components/schemas/CentrifugoMessage'
+                  }
+                }
+              }
+            },
+            responses: {
+              '200': {
+                description: 'Message sent successfully',
+                content: {
+                  'application/json': {
+                    schema: {
+                      type: 'object',
+                      properties: {
+                        success: { type: 'boolean', example: true },
+                        message: { $ref: '#/components/schemas/Message' }
+                      }
+                    }
+                  }
+                }
+              },
+              '400': {
+                description: 'Bad request - Missing required fields',
+                content: {
+                  'application/json': {
+                    schema: {
+                      $ref: '#/components/schemas/Error'
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        '/api/centrifugo/history/{userId1}/{userId2}': {
+          get: {
+            tags: ['Centrifugo'],
+            summary: 'Get Conversation History',
+            description: 'Retrieve message history for a conversation between two users',
+            parameters: [
+              {
+                name: 'userId1',
+                in: 'path',
+                required: true,
+                schema: { type: 'integer' },
+                description: 'First user ID'
+              },
+              {
+                name: 'userId2',
+                in: 'path',
+                required: true,
+                schema: { type: 'integer' },
+                description: 'Second user ID'
+              }
+            ],
+            responses: {
+              '200': {
+                description: 'History retrieved successfully',
+                content: {
+                  'application/json': {
+                    schema: {
+                      type: 'object',
+                      properties: {
+                        success: { type: 'boolean', example: true },
+                        history: { type: 'object' }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        '/api/centrifugo/presence/{userId1}/{userId2}': {
+          get: {
+            tags: ['Centrifugo'],
+            summary: 'Get Channel Presence',
+            description: 'Get online users in a conversation channel',
+            parameters: [
+              {
+                name: 'userId1',
+                in: 'path',
+                required: true,
+                schema: { type: 'integer' },
+                description: 'First user ID'
+              },
+              {
+                name: 'userId2',
+                in: 'path',
+                required: true,
+                schema: { type: 'integer' },
+                description: 'Second user ID'
+              }
+            ],
+            responses: {
+              '200': {
+                description: 'Presence retrieved successfully',
+                content: {
+                  'application/json': {
+                    schema: {
+                      type: 'object',
+                      properties: {
+                        success: { type: 'boolean', example: true },
+                        presence: { type: 'object' }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        '/api/centrifugo/mark-read': {
+          post: {
+            tags: ['Centrifugo'],
+            summary: 'Mark Message as Read',
+            description: 'Mark a message as read and notify the sender',
+            requestBody: {
+              required: true,
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    required: ['messageId', 'userId'],
+                    properties: {
+                      messageId: { type: 'integer', example: 1, description: 'ID of the message to mark as read' },
+                      userId: { type: 'integer', example: 2, description: 'ID of the user marking the message as read' }
+                    }
+                  }
+                }
+              }
+            },
+            responses: {
+              '200': {
+                description: 'Message marked as read successfully',
+                content: {
+                  'application/json': {
+                    schema: {
+                      type: 'object',
+                      properties: {
+                        success: { type: 'boolean', example: true },
+                        message: { type: 'string', example: 'Message marked as read' }
+                      }
+                    }
+                  }
+                }
+              },
+              '400': {
+                description: 'Bad request - Missing required fields',
+                content: {
+                  'application/json': {
+                    schema: {
+                      $ref: '#/components/schemas/Error'
+                    }
+                  }
+                }
+              },
+              '404': {
+                description: 'Message not found or already read',
+                content: {
+                  'application/json': {
+                    schema: {
+                      $ref: '#/components/schemas/Error'
+                    }
                   }
                 }
               }
