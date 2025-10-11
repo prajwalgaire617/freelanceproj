@@ -155,6 +155,65 @@ router.get('/urgent', jobPostController.getUrgentJobs);
 
 /**
  * @swagger
+ * /api/jobs/my-jobs:
+ *   get:
+ *     summary: Get jobs posted by the authenticated client
+ *     tags: [Jobs]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Number of jobs per page
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [draft, active, paused, closed, completed]
+ *         description: Filter by job status
+ *     responses:
+ *       200:
+ *         description: Client's jobs retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 jobs:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/JobPost'
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     currentPage:
+ *                       type: integer
+ *                     totalPages:
+ *                       type: integer
+ *                     totalJobs:
+ *                       type: integer
+ *                     hasNext:
+ *                       type: boolean
+ *                     hasPrev:
+ *                       type: boolean
+ *       403:
+ *         description: Access denied - only clients can access this endpoint
+ */
+router.get('/my-jobs', authenticateToken, requireRole('client'), jobPostController.getMyJobs);
+
+/**
+ * @swagger
  * /api/jobs/{id}:
  *   get:
  *     summary: Get single job post
@@ -241,6 +300,94 @@ router.get('/urgent', jobPostController.getUrgentJobs);
  *       404:
  *         description: Job not found or access denied
  */
+/**
+ * @swagger
+ * /api/jobs:
+ *   post:
+ *     summary: Create a new job post
+ *     tags: [Jobs]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - title
+ *               - description
+ *               - budget
+ *               - budgetType
+ *             properties:
+ *               title:
+ *                 type: string
+ *                 example: "React Developer Needed"
+ *               description:
+ *                 type: string
+ *                 example: "Looking for an experienced React developer..."
+ *               budget:
+ *                 type: number
+ *                 example: 2500
+ *               budgetType:
+ *                 type: string
+ *                 enum: [fixed, hourly, range]
+ *                 example: "fixed"
+ *               minBudget:
+ *                 type: number
+ *                 example: 1000
+ *               maxBudget:
+ *                 type: number
+ *                 example: 5000
+ *               skills:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 example: ["react", "javascript", "node.js"]
+ *               experienceLevel:
+ *                 type: string
+ *                 enum: [entry, intermediate, expert]
+ *                 example: "expert"
+ *               projectDuration:
+ *                 type: string
+ *                 example: "4-6 weeks"
+ *               timezone:
+ *                 type: string
+ *                 example: "EST"
+ *               status:
+ *                 type: string
+ *                 enum: [draft, active, paused, closed, completed]
+ *                 example: "active"
+ *               connectRequired:
+ *                 type: integer
+ *                 example: 3
+ *               isFeatured:
+ *                 type: boolean
+ *                 example: false
+ *               isUrgent:
+ *                 type: boolean
+ *                 example: false
+ *     responses:
+ *       201:
+ *         description: Job created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 job:
+ *                   $ref: '#/components/schemas/JobPost'
+ *       400:
+ *         description: Validation error
+ *       403:
+ *         description: Access denied - only clients can post jobs
+ */
+router.post('/', authenticateToken, requireRole('client'), jobPostController.createJobPost);
+
 router.get('/:id', jobPostController.getJobById);
 router.put('/:id', authenticateToken, requireRole('client'), jobPostController.updateJobPost);
 router.delete('/:id', authenticateToken, requireRole('client'), jobPostController.deleteJobPost);

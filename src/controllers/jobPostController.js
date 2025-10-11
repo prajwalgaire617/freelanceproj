@@ -30,6 +30,75 @@ const asyncHandler = require('express-async-handler');
  *           example: false
  */
 
+// @desc    Create a new job post
+// @route   POST /api/jobs
+// @access  Private (Client only)
+const createJobPost = asyncHandler(async (req, res) => {
+  const {
+    title,
+    description,
+    budget,
+    budgetType,
+    minBudget,
+    maxBudget,
+    skills = [],
+    experienceLevel,
+    projectDuration,
+    timezone,
+    status = 'draft',
+    connectRequired = 0,
+    isFeatured = false,
+    isUrgent = false
+  } = req.body;
+
+  const clientId = req.user.id;
+
+  // Validate required fields
+  if (!title || !description || !budget || !budgetType) {
+    return res.status(400).json({
+      success: false,
+      message: 'Title, description, budget, and budgetType are required'
+    });
+  }
+
+  // Create job post
+  const job = await JobPost.create({
+    title,
+    description,
+    budget,
+    budgetType,
+    minBudget,
+    maxBudget,
+    skills,
+    experienceLevel,
+    projectDuration,
+    timezone,
+    status,
+    connectRequired,
+    isFeatured,
+    isUrgent,
+    clientId,
+    isPublic: status === 'active'
+  });
+
+  // Get job with client details
+  const jobWithClient = await JobPost.findByPk(job.id, {
+    include: [
+      {
+        model: User,
+        as: 'client',
+        attributes: ['id', 'firstName', 'lastName', 'profileImage']
+      }
+    ]
+  });
+
+  res.status(201).json({
+    success: true,
+    message: 'Job created successfully',
+    job: jobWithClient
+  });
+});
+
 // @desc    Get all public job posts
 // @route   GET /api/jobs
 // @access  Public
@@ -299,12 +368,58 @@ const getUrgentJobs = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc    Get jobs posted by the authenticated client
+// @route   GET /api/jobs/my-jobs
+// @access  Private (Client only)
+const getMyJobs = asyncHandler(async (req, res) => {
+  const { page = 1, limit = 10, status } = req.query;
+  const clientId = req.user.id;
+  const offset = (parseInt(page) - 1) * parseInt(limit);
+
+  const whereClause = { clientId };
+  if (status) {
+    whereClause.status = status;
+  }
+
+  const { count, rows: jobs } = await JobPost.findAndCountAll({
+    where: whereClause,
+    include: [
+      {
+        model: User,
+        as: 'client',
+        attributes: ['id', 'firstName', 'lastName', 'profileImage']
+      }
+    ],
+    order: [['createdAt', 'DESC']],
+    limit: parseInt(limit),
+    offset: parseInt(offset),
+    distinct: true,
+    subQuery: false
+  });
+
+  const totalPages = Math.ceil(count / limit);
+
+  res.json({
+    success: true,
+    jobs,
+    pagination: {
+      currentPage: parseInt(page),
+      totalPages,
+      totalJobs: count,
+      hasNext: page < totalPages,
+      hasPrev: page > 1
+    }
+  });
+});
+
 module.exports = {
+  createJobPost,
   getAllJobs,
   getJobById,
   updateJobPost,
   deleteJobPost,
   getJobStats,
   getFeaturedJobs,
-  getUrgentJobs
+  getUrgentJobs,
+  getMyJobs
 };

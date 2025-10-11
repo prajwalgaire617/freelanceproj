@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WorkLab Chat Test</title>
+    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; background: #f5f5f5; }
+        .container { display: flex; gap: 20px; }
+        .chat-box { flex: 1; background: white; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); overflow: hidden; }
+        .header { background: #007bff; color: white; padding: 15px; text-align: center; }
+        .messages { height: 300px; overflow-y: auto; padding: 15px; background: #f8f9fa; }
+        .message { margin: 10px 0; padding: 10px; border-radius: 10px; max-width: 80%; }
+        .message.sent { background: #007bff; color: white; margin-left: auto; }
+        .message.received { background: #e9ecef; color: #333; }
+        .input-area { padding: 15px; background: white; border-top: 1px solid #dee2e6; display: flex; gap: 10px; }
+        .input-area input { flex: 1; padding: 10px; border: 1px solid #dee2e6; border-radius: 5px; }
+        .input-area button { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        .status { padding: 10px; text-align: center; background: #d4edda; color: #155724; margin-bottom: 10px; }
+        .controls { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .controls input, .controls button { width: 100%; padding: 10px; margin: 5px 0; border: 1px solid #dee2e6; border-radius: 5px; }
+        .controls button { background: #28a745; color: white; border: none; cursor: pointer; }
+        .typing { font-style: italic; color: #6c757d; padding: 5px; }
+    </style>
+</head>
+<body>
+    <h1>🚀 WorkLab Real-time Chat Test</h1>
+    
+    <div class="container">
+        <div class="controls">
+            <h3>Connection Settings</h3>
+            <input type="text" id="token1" placeholder="User 1 Token" value="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiaWF0IjoxNzYwMTc3OTU1LCJleHAiOjE3NjI3Njk5NTV9.WKPr0EP3cGYaapFw5zRNDljLDlMYQPJgVtZJSwW8Ems">
+            <input type="text" id="token2" placeholder="User 2 Token" value="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MiwiaWF0IjoxNzYwMTc4MDU2LCJleHAiOjE3NjI3NzAwNTZ9.ldydVxGAYcxYGLlUhaesmKYxGcMmb8q-RRFEculidJ8">
+            <button onclick="connectUsers()">Connect Both Users</button>
+            <button onclick="disconnectAll()">Disconnect All</button>
+            <button onclick="sendTestMessage()">Send Test Message</button>
+            <button onclick="simulateTyping()">Simulate Typing</button>
+        </div>
+        
+        <div class="chat-box">
+            <div class="header">User 1 (Freelancer)</div>
+            <div class="status" id="status1">Disconnected</div>
+            <div class="messages" id="messages1"></div>
+            <div class="typing" id="typing1" style="display: none;"></div>
+            <div class="input-area">
+                <input type="text" id="input1" placeholder="Type message..." onkeypress="handleKeyPress(event, 1)">
+                <button onclick="sendMessage(1)">Send</button>
+            </div>
+        </div>
+        
+        <div class="chat-box">
+            <div class="header">User 2 (Client)</div>
+            <div class="status" id="status2">Disconnected</div>
+            <div class="messages" id="messages2"></div>
+            <div class="typing" id="typing2" style="display: none;"></div>
+            <div class="input-area">
+                <input type="text" id="input2" placeholder="Type message..." onkeypress="handleKeyPress(event, 2)">
+                <button onclick="sendMessage(2)">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let sockets = {};
+        let currentUserId = { 1: 1, 2: 2 };
+        let isTyping = { 1: false, 2: false };
+        let typingTimeouts = {};
+
+        function connectUsers() {
+            const token1 = document.getElementById('token1').value;
+            const token2 = document.getElementById('token2').value;
+            
+            if (!token1 || !token2) {
+                alert('Please enter both tokens');
+                return;
+            }
+
+            // Connect User 1
+            connectUser(1, token1, 2);
+            // Connect User 2
+            connectUser(2, token2, 1);
+        }
+
+        function connectUser(userNum, token, partnerId) {
+            const socket = io('http://localhost:3001', {
+                auth: { token: token }
+            });
+
+            socket.on('connect', () => {
+                console.log(`User ${userNum} connected`);
+                document.getElementById(`status${userNum}`).textContent = 'Connected';
+                document.getElementById(`status${userNum}`).style.background = '#d4edda';
+                document.getElementById(`status${userNum}`).style.color = '#155724';
+                
+                socket.emit('join_conversation', { partnerId: partnerId });
+            });
+
+            socket.on('connect_error', (error) => {
+                console.error(`User ${userNum} connection error:`, error);
+                document.getElementById(`status${userNum}`).textContent = 'Connection failed: ' + error.message;
+                document.getElementById(`status${userNum}`).style.background = '#f8d7da';
+                document.getElementById(`status${userNum}`).style.color = '#721c24';
+            });
+
+            socket.on('new_message', (message) => {
+                displayMessage(userNum, message);
+            });
+
+            socket.on('user_typing', (data) => {
+                showTyping(userNum, data);
+            });
+
+            socket.on('message_notification', (data) => {
+                console.log(`User ${userNum} notification:`, data);
+            });
+
+            socket.on('disconnect', () => {
+                document.getElementById(`status${userNum}`).textContent = 'Disconnected';
+                document.getElementById(`status${userNum}`).style.background = '#f8d7da';
+                document.getElementById(`status${userNum}`).style.color = '#721c24';
+            });
+
+            sockets[userNum] = socket;
+        }
+
+        function displayMessage(userNum, message) {
+            const messagesDiv = document.getElementById(`messages${userNum}`);
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${message.senderId === currentUserId[userNum] ? 'sent' : 'received'}`;
+            
+            const info = document.createElement('div');
+            info.style.fontSize = '12px';
+            info.style.opacity = '0.7';
+            info.textContent = `${message.sender.firstName} ${message.sender.lastName} - ${new Date(message.sentAt).toLocaleTimeString()}`;
+            
+            const content = document.createElement('div');
+            content.textContent = message.content;
+            
+            messageDiv.appendChild(info);
+            messageDiv.appendChild(content);
+            messagesDiv.appendChild(messageDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        function showTyping(userNum, data) {
+            const typingDiv = document.getElementById(`typing${userNum}`);
+            if (data.isTyping) {
+                typingDiv.textContent = `${data.userName} is typing...`;
+                typingDiv.style.display = 'block';
+            } else {
+                typingDiv.style.display = 'none';
+            }
+        }
+
+        function sendMessage(userNum) {
+            const input = document.getElementById(`input${userNum}`);
+            const content = input.value.trim();
+            
+            if (!content || !sockets[userNum]) return;
+
+            const partnerId = userNum === 1 ? 2 : 1;
+            sockets[userNum].emit('send_message', {
+                receiverId: partnerId,
+                content: content,
+                messageType: 'text'
+            });
+
+            input.value = '';
+            stopTyping(userNum);
+        }
+
+        function handleKeyPress(event, userNum) {
+            if (event.key === 'Enter') {
+                sendMessage(userNum);
+            } else {
+                startTyping(userNum);
+            }
+        }
+
+        function startTyping(userNum) {
+            if (!isTyping[userNum] && sockets[userNum]) {
+                isTyping[userNum] = true;
+                const partnerId = userNum === 1 ? 2 : 1;
+                sockets[userNum].emit('typing_start', { partnerId: partnerId });
+            }
+            
+            clearTimeout(typingTimeouts[userNum]);
+            typingTimeouts[userNum] = setTimeout(() => {
+                stopTyping(userNum);
+            }, 1000);
+        }
+
+        function stopTyping(userNum) {
+            if (isTyping[userNum] && sockets[userNum]) {
+                isTyping[userNum] = false;
+                const partnerId = userNum === 1 ? 2 : 1;
+                sockets[userNum].emit('typing_stop', { partnerId: partnerId });
+            }
+            clearTimeout(typingTimeouts[userNum]);
+        }
+
+        function sendTestMessage() {
+            if (sockets[1]) {
+                sockets[1].emit('send_message', {
+                    receiverId: 2,
+                    content: 'This is a test message from the automated test!',
+                    messageType: 'text'
+                });
+            }
+        }
+
+        function simulateTyping() {
+            if (sockets[1]) {
+                startTyping(1);
+                setTimeout(() => {
+                    stopTyping(1);
+                }, 2000);
+            }
+        }
+
+        function disconnectAll() {
+            Object.values(sockets).forEach(socket => {
+                if (socket) socket.disconnect();
+            });
+            sockets = {};
+        }
+
+        // Auto-connect on page load
+        window.onload = function() {
+            setTimeout(connectUsers, 1000);
+        };
+    </script>
+</body>
+</html>

@@ -550,6 +550,73 @@ const options = {
               }
             }
           }
+        },
+        WebSocketMessage: {
+          type: 'object',
+          required: ['receiverId', 'content'],
+          properties: {
+            receiverId: {
+              type: 'integer',
+              example: 2,
+              description: 'ID of the user receiving the message'
+            },
+            content: {
+              type: 'string',
+              example: 'Hello! I am interested in your project.',
+              description: 'Message content'
+            },
+            messageType: {
+              type: 'string',
+              enum: ['text', 'image', 'file', 'system'],
+              default: 'text',
+              example: 'text',
+              description: 'Type of message being sent'
+            },
+            attachments: {
+              type: 'array',
+              items: {
+                type: 'string'
+              },
+              example: [],
+              description: 'Array of attachment URLs or IDs'
+            }
+          }
+        },
+        WebSocketEvent: {
+          type: 'object',
+          properties: {
+            event: {
+              type: 'string',
+              example: 'new_message',
+              description: 'WebSocket event name'
+            },
+            data: {
+              type: 'object',
+              description: 'Event data payload'
+            }
+          }
+        },
+        TypingIndicator: {
+          type: 'object',
+          required: ['partnerId'],
+          properties: {
+            partnerId: {
+              type: 'integer',
+              example: 2,
+              description: 'ID of the conversation partner'
+            }
+          }
+        },
+        ConversationRoom: {
+          type: 'object',
+          required: ['partnerId'],
+          properties: {
+            partnerId: {
+              type: 'integer',
+              example: 2,
+              description: 'ID of the conversation partner'
+            }
+          }
         }
       }
     },
@@ -557,11 +624,64 @@ const options = {
       {
         bearerAuth: []
       }
-    ]
+    ],
+    paths: {
+      '/websocket': {
+        get: {
+          tags: ['WebSocket'],
+          summary: 'WebSocket Connection',
+          description: 'Establish a WebSocket connection for real-time chat functionality. This endpoint provides real-time messaging, typing indicators, and message notifications.',
+          parameters: [
+            {
+              name: 'token',
+              in: 'query',
+              required: true,
+              schema: {
+                type: 'string'
+              },
+              description: 'JWT authentication token'
+            }
+          ],
+          responses: {
+            '101': {
+              description: 'WebSocket connection established successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      status: {
+                        type: 'string',
+                        example: 'connected'
+                      },
+                      message: {
+                        type: 'string',
+                        example: 'WebSocket connection established'
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            '401': {
+              description: 'Authentication failed',
+              content: {
+                'application/json': {
+                  schema: {
+                    $ref: '#/components/schemas/Error'
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
   },
   apis: [
     './src/routes/*.js',
-    './src/controllers/*.js'
+    './src/controllers/*.js',
+    './src/docs/*.js'
   ]
 };
 
