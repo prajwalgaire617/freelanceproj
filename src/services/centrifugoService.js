@@ -2,6 +2,7 @@
  * Centrifugo Service
  * Handles real-time messaging via Centrifugo
  */
+require('dotenv').config();
 const Client = require('jscent');
 const { CENTRIFUGO } = require('../constants');
 const { ExternalServiceError } = require('../exceptions/AppError');
