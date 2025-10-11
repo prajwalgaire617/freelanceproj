@@ -10,7 +10,7 @@ require('dotenv').config();
 const swaggerSpec = require('./config/swagger');
 
 // Import database connection
-const connectDB = require('./db/config/database');
+const { connectDB } = require('./db/config/database');
 
 // Import routes
 const authRoutes = require('./routes/authRoutes');

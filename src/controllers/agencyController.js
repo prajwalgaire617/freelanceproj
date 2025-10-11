@@ -1,5 +1,5 @@
 const asyncHandler = require('express-async-handler');
-const db = require('../db/models/index.js');
+const db = require('../db');
 const { validationResult } = require('express-validator');
 
 // @desc    Create agency profile

@@ -1,6 +1,6 @@
 const asyncHandler = require('express-async-handler');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
-const db = require('../db/models/index.js');
+const db = require('../db');
 const { validationResult } = require('express-validator');
 
 // @desc    Create contract

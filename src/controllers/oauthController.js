@@ -1,7 +1,7 @@
 const asyncHandler = require('express-async-handler');
 const passport = require('passport');
 const jwt = require('jsonwebtoken');
-const db = require('../db/models/index.js');
+const db = require('../db');
 
 // Create JWT token
 const generateToken = (id) => {

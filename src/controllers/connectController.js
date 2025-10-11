@@ -1,6 +1,6 @@
 const asyncHandler = require('express-async-handler');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
-const db = require('../db/models/index.js');
+const db = require('../db');
 const { validationResult } = require('express-validator');
 
 // @desc    Purchase connects
@@ -35,33 +35,45 @@ const purchaseConnects = asyncHandler(async (req, res) => {
     });
 
     if (paymentIntent.status === 'succeeded') {
-      // Create connect record
-      const connect = await db.Connect.create({
-        userId,
-        type: 'purchased',
-        amount: totalAmount,
-        quantity,
-        stripePaymentIntentId: paymentIntent.id,
-        stripeChargeId: paymentIntent.latest_charge,
-        status: 'completed',
-        remaining: quantity,
-        metadata: {
-          paymentIntentId: paymentIntent.id,
-          chargeId: paymentIntent.latest_charge
-        }
-      });
+      // Use transaction to ensure atomicity
+      const transaction = await db.sequelize.transaction();
+      
+      try {
+        // Create connect record
+        const connect = await db.Connect.create({
+          userId,
+          type: 'purchased',
+          amount: totalAmount,
+          quantity,
+          stripePaymentIntentId: paymentIntent.id,
+          stripeChargeId: paymentIntent.latest_charge,
+          status: 'completed',
+          remaining: quantity,
+          metadata: {
+            paymentIntentId: paymentIntent.id,
+            chargeId: paymentIntent.latest_charge
+          }
+        }, { transaction });
 
-      // Update user's connect balance
-      const user = await db.User.findByPk(userId);
-      await user.update({
-        connectBalance: user.connectBalance + quantity
-      });
+        // Update user's connect balance
+        const user = await db.User.findByPk(userId, { transaction });
+        await user.update({
+          connectBalance: user.connectBalance + quantity
+        }, { transaction });
 
-      res.json({
-        message: 'Connects purchased successfully',
-        connect,
-        newBalance: user.connectBalance + quantity
-      });
+        // Commit transaction
+        await transaction.commit();
+
+        res.json({
+          message: 'Connects purchased successfully',
+          connect,
+          newBalance: user.connectBalance + quantity
+        });
+      } catch (error) {
+        // Rollback transaction on error
+        await transaction.rollback();
+        throw error;
+      }
     } else {
       res.status(400).json({ error: 'Payment failed' });
     }
@@ -202,33 +214,45 @@ const confirmPayment = asyncHandler(async (req, res) => {
     const quantity = parseInt(paymentIntent.metadata.quantity);
     const amount = paymentIntent.amount / 100;
 
-    // Create connect record
-    const connect = await db.Connect.create({
-      userId,
-      type: 'purchased',
-      amount,
-      quantity,
-      stripePaymentIntentId: paymentIntentId,
-      stripeChargeId: paymentIntent.latest_charge,
-      status: 'completed',
-      remaining: quantity,
-      metadata: {
-        paymentIntentId,
-        chargeId: paymentIntent.latest_charge
-      }
-    });
+    // Use transaction to ensure atomicity
+    const transaction = await db.sequelize.transaction();
+    
+    try {
+      // Create connect record
+      const connect = await db.Connect.create({
+        userId,
+        type: 'purchased',
+        amount,
+        quantity,
+        stripePaymentIntentId: paymentIntentId,
+        stripeChargeId: paymentIntent.latest_charge,
+        status: 'completed',
+        remaining: quantity,
+        metadata: {
+          paymentIntentId,
+          chargeId: paymentIntent.latest_charge
+        }
+      }, { transaction });
 
-    // Update user's connect balance
-    const user = await db.User.findByPk(userId);
-    await user.update({
-      connectBalance: user.connectBalance + quantity
-    });
+      // Update user's connect balance
+      const user = await db.User.findByPk(userId, { transaction });
+      await user.update({
+        connectBalance: user.connectBalance + quantity
+      }, { transaction });
 
-    res.json({
-      message: 'Connects added successfully',
-      connect,
-      newBalance: user.connectBalance
-    });
+      // Commit transaction
+      await transaction.commit();
+
+      res.json({
+        message: 'Connects added successfully',
+        connect,
+        newBalance: user.connectBalance
+      });
+    } catch (error) {
+      // Rollback transaction on error
+      await transaction.rollback();
+      throw error;
+    }
   } catch (error) {
     console.error('Payment confirmation error:', error);
     res.status(500).json({ error: 'Failed to confirm payment' });

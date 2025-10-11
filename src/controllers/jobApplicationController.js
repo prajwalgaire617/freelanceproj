@@ -1,5 +1,5 @@
 const asyncHandler = require('express-async-handler');
-const db = require('../db/models/index.js');
+const db = require('../db');
 const { validationResult } = require('express-validator');
 
 // @desc    Apply for a job
@@ -56,50 +56,63 @@ const applyForJob = asyncHandler(async (req, res) => {
     }
   }
 
-  // Create job application
-  const jobApplication = await db.JobApplication.create({
-    userId,
-    jobPostId,
-    coverLetter,
-    proposedRate,
-    proposedTimeline,
-    additionalInfo,
-    attachments,
-    status: 'pending'
-  });
-
-  // Deduct connects if required
-  if (jobPost.connectRequired > 0) {
-    const user = await db.User.findByPk(userId);
-    await user.update({
-      connectBalance: user.connectBalance - jobPost.connectRequired
-    });
-
-    // Create connect usage record
-    await db.Connect.create({
+  // Use transaction to ensure atomicity
+  const transaction = await db.sequelize.transaction();
+  
+  try {
+    // Create job application
+    const jobApplication = await db.JobApplication.create({
       userId,
-      type: 'used',
-      amount: 0,
-      quantity: jobPost.connectRequired,
-      status: 'completed',
-      used: jobPost.connectRequired,
-      remaining: 0,
-      metadata: { jobApplicationId: jobApplication.id }
+      jobPostId,
+      coverLetter,
+      proposedRate,
+      proposedTimeline,
+      additionalInfo,
+      attachments,
+      status: 'pending'
+    }, { transaction });
+
+    // Deduct connects if required
+    if (jobPost.connectRequired > 0) {
+      const user = await db.User.findByPk(userId, { transaction });
+      await user.update({
+        connectBalance: user.connectBalance - jobPost.connectRequired
+      }, { transaction });
+
+      // Create connect usage record
+      await db.Connect.create({
+        userId,
+        type: 'used',
+        amount: 0,
+        quantity: jobPost.connectRequired,
+        status: 'completed',
+        used: jobPost.connectRequired,
+        remaining: 0,
+        metadata: { jobApplicationId: jobApplication.id }
+      }, { transaction });
+    }
+
+    // Get application with relations
+    const applicationWithDetails = await db.JobApplication.findByPk(jobApplication.id, {
+      include: [
+        { model: db.User, as: 'applicant' },
+        { model: db.JobPost, as: 'jobPost' }
+      ],
+      transaction
     });
+
+    // Commit transaction
+    await transaction.commit();
+
+    res.status(201).json({
+      message: 'Job application submitted successfully',
+      application: applicationWithDetails
+    });
+  } catch (error) {
+    // Rollback transaction on error
+    await transaction.rollback();
+    throw error;
   }
-
-  // Get application with relations
-  const applicationWithDetails = await db.JobApplication.findByPk(jobApplication.id, {
-    include: [
-      { model: db.User, as: 'applicant' },
-      { model: db.JobPost, as: 'jobPost' }
-    ]
-  });
-
-  res.status(201).json({
-    message: 'Job application submitted successfully',
-    application: applicationWithDetails
-  });
 });
 
 // @desc    Get user's job applications

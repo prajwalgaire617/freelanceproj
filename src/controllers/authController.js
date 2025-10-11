@@ -2,7 +2,7 @@ const asyncHandler = require('express-async-handler');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
-const db = require('../db/models/index.js');
+const db = require('../db');
 const { validationResult } = require('express-validator');
 
 // Create JWT token

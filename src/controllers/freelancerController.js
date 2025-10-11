@@ -1,4 +1,4 @@
-const { User, Freelancer, JobPost, JobApplication, Connect } = require('../db/models');
+const { User, Freelancer, JobPost, JobApplication, Connect, sequelize } = require('../db');
 const { Op } = require('sequelize');
 const asyncHandler = require('express-async-handler');
 
@@ -124,7 +124,9 @@ const searchJobs = asyncHandler(async (req, res) => {
     ],
     order: [['createdAt', 'DESC']],
     limit: parseInt(limit),
-    offset: parseInt(offset)
+    offset: parseInt(offset),
+    distinct: true,
+    subQuery: false
   });
 
   const totalPages = Math.ceil(count / limit);

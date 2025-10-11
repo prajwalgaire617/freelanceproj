@@ -1,4 +1,4 @@
-const { User, Freelancer, JobPost, JobApplication, Contract } = require('../db/models');
+const { User, Freelancer, JobPost, JobApplication, Contract, sequelize } = require('../db');
 const { Op } = require('sequelize');
 const asyncHandler = require('express-async-handler');
 
