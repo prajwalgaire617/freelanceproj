@@ -3,7 +3,6 @@ const passport = require('passport');
 const router = express.Router();
 
 const authController = require('../controllers/authController');
-const oauthController = require('../controllers/oauthController');
 const { authenticateToken } = require('../middleware/auth');
 const {
   validateUserRegistration,
@@ -183,53 +182,6 @@ router.put('/change-password', authenticateToken, validateChangePassword, authCo
 // @access  Private
 router.delete('/deactivate', authenticateToken, authController.deactivateAccount);
 
-// OAuth Routes
-// @route   GET /api/auth/google
-// @desc    Google OAuth
-// @access  Public
-router.get('/google', passport.authenticate('google', {
-  scope: ['profile', 'email']
-}));
-
-// @route   GET /api/auth/google/callback
-// @desc    Google OAuth callback
-// @access  Public
-router.get('/google/callback', 
-  passport.authenticate('google', { session: false }),
-  oauthController.googleCallback
-);
-
-// @route   GET /api/auth/facebook
-// @desc    Facebook OAuth
-// @access  Public
-router.get('/facebook', passport.authenticate('facebook', {
-  scope: ['email']
-}));
-
-// @route   GET /api/auth/facebook/callback
-// @desc    Facebook OAuth callback
-// @access  Public
-router.get('/facebook/callback',
-  passport.authenticate('facebook', { session: false }),
-  oauthController.facebookCallback
-);
-
-// @route   GET /api/auth/linkedin
-// @desc    LinkedIn OAuth
-// @access  Public
-router.get('/linkedin', passport.authenticate('linkedin'));
-
-// @route   GET /api/auth/linkedin/callback
-// @desc    LinkedIn OAuth callback
-// @access  Public
-router.get('/linkedin/callback',
-  passport.authenticate('linkedin', { session: false }),
-  oauthController.linkedinCallback
-);
-
-// @route   GET /api/auth/oauth/user
-// @desc    Get OAuth user info
-// @access  Private
-router.get('/oauth/user', authenticateToken, oauthController.getOAuthUser);
+// OAuth routes moved to separate oauthRoutes.js file
 
 module.exports = router;

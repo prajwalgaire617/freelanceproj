@@ -1,6 +1,7 @@
 const asyncHandler = require('express-async-handler');
 const db = require('../db');
 const { validationResult } = require('express-validator');
+const CentrifugoService = require('../services/centrifugoService');
 
 // @desc    Send message
 // @route   POST /api/messages
@@ -68,6 +69,31 @@ const sendMessage = asyncHandler(async (req, res) => {
       { model: db.User, as: 'receiver' }
     ]
   });
+
+  // 🚀 Broadcast message to Centrifugo channel
+  try {
+    const conversationChannel = CentrifugoService.getConversationChannel(senderId, receiverId);
+    console.log(`📡 Broadcasting message to channel: ${conversationChannel}`);
+    
+    await CentrifugoService.publishMessage(conversationChannel, {
+      id: messageWithDetails.id,
+      senderId: messageWithDetails.senderId,
+      receiverId: messageWithDetails.receiverId,
+      content: messageWithDetails.content,
+      messageType: messageWithDetails.messageType,
+      sentAt: messageWithDetails.sentAt,
+      sender: {
+        id: messageWithDetails.sender.id,
+        firstName: messageWithDetails.sender.firstName,
+        lastName: messageWithDetails.sender.lastName
+      }
+    });
+    
+    console.log(`✅ Message broadcasted successfully to ${conversationChannel}`);
+  } catch (error) {
+    console.error('❌ Error broadcasting message to Centrifugo:', error);
+    // Don't fail the request if broadcasting fails
+  }
 
   res.status(201).json({
     message: 'Message sent successfully',
@@ -277,7 +303,22 @@ const getConversations = asyncHandler(async (req, res) => {
 
   const conversationList = Array.from(conversationMap.values())
     .sort((a, b) => new Date(b.lastMessage.sentAt) - new Date(a.lastMessage.sentAt))
-    .slice(offset, offset + parseInt(limit));
+    .slice(offset, offset + parseInt(limit))
+    .map(conv => ({
+      id: conv.partnerId,
+      otherUser: {
+        id: conv.partner.id,
+        firstName: conv.partner.firstName,
+        lastName: conv.partner.lastName,
+        email: conv.partner.email
+      },
+      lastMessage: {
+        content: conv.lastMessage.content,
+        sentAt: conv.lastMessage.sentAt
+      },
+      lastMessageAt: conv.lastMessage.sentAt,
+      unreadCount: conv.unreadCount
+    }));
 
   res.json({
     conversations: conversationList,

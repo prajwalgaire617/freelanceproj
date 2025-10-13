@@ -1,204 +1,95 @@
-const asyncHandler = require('express-async-handler');
-const passport = require('passport');
 const jwt = require('jsonwebtoken');
-const db = require('../db');
-
-// Create JWT token
-const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET || 'xzoxnco02983h4b2o3soj', {
-    expiresIn: '30d',
-  });
-};
+const { sendSuccess, sendError } = require('../utils/response');
+const asyncHandler = require('express-async-handler');
 
 // @desc    Google OAuth callback
 // @route   GET /api/auth/google/callback
 // @access  Public
 const googleCallback = asyncHandler(async (req, res) => {
   try {
-    const { user } = req;
+    const user = req.user;
     
     if (!user) {
-      return res.status(400).json({ error: 'Google authentication failed' });
+      return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}/login?error=oauth_failed`);
     }
 
-    // Check if user already exists
-    let existingUser = await db.User.findOne({
-      where: {
-        [db.Sequelize.Op.or]: [
-          { email: user.emails[0].value },
-          { googleId: user.id }
-        ]
-      }
-    });
+    // Generate JWT token
+    const token = jwt.sign(
+      { 
+        id: user.id, 
+        email: user.email, 
+        userType: user.userType 
+      },
+      process.env.JWT_SECRET || 'worklab_jwt_secret_2024_secure_key',
+      { expiresIn: '24h' }
+    );
 
-    if (existingUser) {
-      // Update Google ID if not set
-      if (!existingUser.googleId) {
-        await existingUser.update({ googleId: user.id });
-      }
-      
-      // Update last login
-      await existingUser.update({ lastLogin: new Date() });
-      
-      // Generate token
-      const token = generateToken(existingUser.id);
-      
-      return res.redirect(`${process.env.CLIENT_URL}/auth/callback?token=${token}&userType=${existingUser.userType}`);
-    }
-
-    // Create new user
-    const newUser = await db.User.create({
-      email: user.emails[0].value,
-      firstName: user.name.givenName,
-      lastName: user.name.familyName,
-      profileImage: user.photos[0]?.value,
-      googleId: user.id,
-      isEmailVerified: true, // Google emails are pre-verified
-      userType: 'freelancer', // Default to freelancer, can be changed later
-    });
-
-    // Generate token
-    const token = generateToken(newUser.id);
-    
-    res.redirect(`${process.env.CLIENT_URL}/auth/callback?token=${token}&userType=${newUser.userType}`);
+    // Redirect to frontend with token
+    const redirectUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/auth/callback?token=${token}&provider=google`;
+    res.redirect(redirectUrl);
   } catch (error) {
-    console.error('Google OAuth error:', error);
-    res.redirect(`${process.env.CLIENT_URL}/auth/error?message=Authentication failed`);
+    console.error('Google OAuth Callback Error:', error);
+    res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}/login?error=oauth_failed`);
   }
 });
 
-// @desc    Facebook OAuth callback
-// @route   GET /api/auth/facebook/callback
+// @desc    Apple OAuth callback
+// @route   GET /api/auth/apple/callback
 // @access  Public
-const facebookCallback = asyncHandler(async (req, res) => {
+const appleCallback = asyncHandler(async (req, res) => {
   try {
-    const { user } = req;
+    const user = req.user;
     
     if (!user) {
-      return res.status(400).json({ error: 'Facebook authentication failed' });
+      return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}/login?error=oauth_failed`);
     }
 
-    // Check if user already exists
-    let existingUser = await db.User.findOne({
-      where: {
-        [db.Sequelize.Op.or]: [
-          { email: user.emails[0].value },
-          { facebookId: user.id }
-        ]
-      }
-    });
+    // Generate JWT token
+    const token = jwt.sign(
+      { 
+        id: user.id, 
+        email: user.email, 
+        userType: user.userType 
+      },
+      process.env.JWT_SECRET || 'worklab_jwt_secret_2024_secure_key',
+      { expiresIn: '24h' }
+    );
 
-    if (existingUser) {
-      // Update Facebook ID if not set
-      if (!existingUser.facebookId) {
-        await existingUser.update({ facebookId: user.id });
-      }
-      
-      // Update last login
-      await existingUser.update({ lastLogin: new Date() });
-      
-      // Generate token
-      const token = generateToken(existingUser.id);
-      
-      return res.redirect(`${process.env.CLIENT_URL}/auth/callback?token=${token}&userType=${existingUser.userType}`);
-    }
-
-    // Create new user
-    const newUser = await db.User.create({
-      email: user.emails[0].value,
-      firstName: user.name.givenName,
-      lastName: user.name.familyName,
-      profileImage: user.photos[0]?.value,
-      facebookId: user.id,
-      isEmailVerified: true, // Facebook emails are pre-verified
-      userType: 'freelancer', // Default to freelancer, can be changed later
-    });
-
-    // Generate token
-    const token = generateToken(newUser.id);
-    
-    res.redirect(`${process.env.CLIENT_URL}/auth/callback?token=${token}&userType=${newUser.userType}`);
+    // Redirect to frontend with token
+    const redirectUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/auth/callback?token=${token}&provider=apple`;
+    res.redirect(redirectUrl);
   } catch (error) {
-    console.error('Facebook OAuth error:', error);
-    res.redirect(`${process.env.CLIENT_URL}/auth/error?message=Authentication failed`);
+    console.error('Apple OAuth Callback Error:', error);
+    res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}/login?error=oauth_failed`);
   }
 });
 
-// @desc    LinkedIn OAuth callback
-// @route   GET /api/auth/linkedin/callback
+// @desc    Get OAuth URLs
+// @route   GET /api/auth/oauth-urls
 // @access  Public
-const linkedinCallback = asyncHandler(async (req, res) => {
-  try {
-    const { user } = req;
-    
-    if (!user) {
-      return res.status(400).json({ error: 'LinkedIn authentication failed' });
-    }
+const getOAuthUrls = asyncHandler(async (req, res) => {
+  const baseUrl = process.env.API_URL || 'http://localhost:3000';
+  
+  const urls = {
+    google: `${baseUrl}/api/auth/google`,
+    apple: `${baseUrl}/api/auth/apple`
+  };
 
-    // Check if user already exists
-    let existingUser = await db.User.findOne({
-      where: {
-        [db.Sequelize.Op.or]: [
-          { email: user.emails[0].value },
-          { linkedinId: user.id }
-        ]
-      }
-    });
+  // Check which OAuth providers are configured
+  const configured = {
+    google: !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
+    apple: !!(process.env.APPLE_CLIENT_ID && process.env.APPLE_TEAM_ID && process.env.APPLE_KEY_ID && process.env.APPLE_PRIVATE_KEY)
+  };
 
-    if (existingUser) {
-      // Update LinkedIn ID if not set
-      if (!existingUser.linkedinId) {
-        await existingUser.update({ linkedinId: user.id });
-      }
-      
-      // Update last login
-      await existingUser.update({ lastLogin: new Date() });
-      
-      // Generate token
-      const token = generateToken(existingUser.id);
-      
-      return res.redirect(`${process.env.CLIENT_URL}/auth/callback?token=${token}&userType=${existingUser.userType}`);
-    }
-
-    // Create new user
-    const newUser = await db.User.create({
-      email: user.emails[0].value,
-      firstName: user.name.givenName,
-      lastName: user.name.familyName,
-      profileImage: user.photos[0]?.value,
-      linkedinId: user.id,
-      isEmailVerified: true, // LinkedIn emails are pre-verified
-      userType: 'freelancer', // Default to freelancer, can be changed later
-    });
-
-    // Generate token
-    const token = generateToken(newUser.id);
-    
-    res.redirect(`${process.env.CLIENT_URL}/auth/callback?token=${token}&userType=${newUser.userType}`);
-  } catch (error) {
-    console.error('LinkedIn OAuth error:', error);
-    res.redirect(`${process.env.CLIENT_URL}/auth/error?message=Authentication failed`);
-  }
-});
-
-// @desc    Get OAuth user info
-// @route   GET /api/auth/oauth/user
-// @access  Private
-const getOAuthUser = asyncHandler(async (req, res) => {
-  const user = await db.User.findByPk(req.userId, {
-    attributes: { exclude: ['password', 'emailVerificationToken', 'passwordResetToken'] },
-  });
-
-  if (!user) {
-    return res.status(404).json({ error: 'User not found' });
-  }
-
-  res.json({ user });
+  sendSuccess(res, {
+    urls,
+    configured,
+    message: 'OAuth URLs retrieved successfully. Configure environment variables to enable OAuth providers.'
+  }, 'OAuth URLs retrieved successfully');
 });
 
 module.exports = {
   googleCallback,
-  facebookCallback,
-  linkedinCallback,
-  getOAuthUser,
+  appleCallback,
+  getOAuthUrls
 };

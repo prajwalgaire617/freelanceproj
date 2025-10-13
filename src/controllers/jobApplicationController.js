@@ -79,17 +79,8 @@ const applyForJob = asyncHandler(async (req, res) => {
         connectBalance: user.connectBalance - jobPost.connectRequired
       }, { transaction });
 
-      // Create connect usage record
-      await db.Connect.create({
-        userId,
-        type: 'used',
-        amount: 0,
-        quantity: jobPost.connectRequired,
-        status: 'completed',
-        used: jobPost.connectRequired,
-        remaining: 0,
-        metadata: { jobApplicationId: jobApplication.id }
-      }, { transaction });
+      // No need to create a separate "used" record - just track the balance change
+      // The connects are already tracked in the user's connectBalance
     }
 
     // Get application with relations

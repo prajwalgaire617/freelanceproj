@@ -103,6 +103,47 @@ const register = asyncHandler(async (req, res) => {
     userType,
     emailVerificationToken,
     emailVerificationExpires,
+    connectBalance: 20, // Give 20 free connects on signup
+  });
+
+  // Create appropriate profile based on user type
+  if (userType === 'freelancer') {
+    await db.Freelancer.create({
+      userId: user.id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      shortBio: 'New freelancer',
+      yearsOfExperience: '0-1 years',
+      expertise: 'General',
+      userType: 'it',
+      visibility: 'public'
+    });
+  } else if (userType === 'client') {
+    await db.Organization.create({
+      userId: user.id,
+      name: `${firstName} ${lastName}`,
+      email: user.email,
+      organizationType: 'individual',
+      size: '1-10',
+      industry: 'Technology',
+      website: '',
+      description: 'New client organization'
+    });
+  }
+
+  // Create connect record for the 20 free connects
+  await db.Connect.create({
+    userId: user.id,
+    type: 'bonus',
+    amount: 0, // Free connects
+    quantity: 20,
+    status: 'completed',
+    remaining: 20,
+    metadata: {
+      description: 'Welcome bonus - 20 free connects for new users',
+      source: 'signup_bonus'
+    }
   });
 
   // Send verification email
@@ -116,7 +157,7 @@ const register = asyncHandler(async (req, res) => {
   const token = generateToken(user.id);
 
   res.status(201).json({
-    message: 'User registered successfully. Please check your email to verify your account.',
+    message: 'User registered successfully. You received 20 free connects! Please check your email to verify your account.',
     token,
     user: {
       id: user.id,
@@ -126,6 +167,7 @@ const register = asyncHandler(async (req, res) => {
       lastName: user.lastName,
       userType: user.userType,
       isEmailVerified: user.isEmailVerified,
+      connectBalance: user.connectBalance,
     },
   });
 });

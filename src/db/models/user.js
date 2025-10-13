@@ -146,6 +146,11 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true,
       unique: true
     },
+    appleId: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      unique: true
+    },
     // Account status
     isActive: {
       type: DataTypes.BOOLEAN,

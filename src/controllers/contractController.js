@@ -2,6 +2,7 @@ const asyncHandler = require('express-async-handler');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const db = require('../db');
 const { validationResult } = require('express-validator');
+const CentrifugoService = require('../services/centrifugoService');
 
 // @desc    Create contract
 // @route   POST /api/contracts
@@ -23,15 +24,38 @@ const createContract = asyncHandler(async (req, res) => {
     hourlyRate,
     paymentSchedule,
     contractStartDate,
-    contractEndDate
+    contractEndDate,
+    terms // Add terms field
   } = req.body;
 
   const clientId = req.userId;
 
-  // Check if freelancer exists
-  const freelancer = await db.Freelancer.findByPk(freelancerId, {
-    include: [{ model: db.User, as: 'user' }]
+  // If freelancerId is actually a userId, find the freelancer record
+  let actualFreelancerId = freelancerId;
+  let freelancerUserId = freelancerId; // Default to the provided ID
+  
+  // First try to find as freelancer ID
+  let freelancer = await db.Freelancer.findByPk(freelancerId, {
+    include: [{ model: db.User, as: 'freelancerUser' }]
   });
+
+  // If not found, try to find by userId
+  if (!freelancer) {
+    freelancer = await db.Freelancer.findOne({
+      where: { userId: freelancerId },
+      include: [{ model: db.User, as: 'freelancerUser' }]
+    });
+    
+    if (freelancer) {
+      actualFreelancerId = freelancer.id;
+      freelancerUserId = freelancer.userId;
+      console.log(`📝 Found freelancer by userId. Freelancer ID: ${actualFreelancerId}, User ID: ${freelancerUserId}`);
+    }
+  } else {
+    // If found by freelancer ID, get the userId
+    freelancerUserId = freelancer.userId;
+    console.log(`📝 Found freelancer by ID. Freelancer ID: ${actualFreelancerId}, User ID: ${freelancerUserId}`);
+  }
 
   if (!freelancer) {
     return res.status(404).json({ error: 'Freelancer not found' });
@@ -48,7 +72,7 @@ const createContract = asyncHandler(async (req, res) => {
   // Create contract
   const contract = await db.Contract.create({
     clientId,
-    freelancerId,
+    freelancerId: actualFreelancerId, // Use the actual freelancer ID
     jobApplicationId,
     workTitle,
     workDescription,
@@ -59,18 +83,57 @@ const createContract = asyncHandler(async (req, res) => {
     paymentSchedule,
     contractStartDate,
     contractEndDate,
+    contractTerms: terms, // Map terms to contractTerms
     contractStatus: 'draft',
-    status: 'active'
+    status: 'active',
+    // Required fields with default values
+    name: workTitle || 'Contract', // Use workTitle as name
+    organizationId: 1 // Default organization ID (we'll create one if needed)
   });
 
   // Get contract with relations
   const contractWithDetails = await db.Contract.findByPk(contract.id, {
     include: [
       { model: db.User, as: 'client' },
-      { model: db.Freelancer, as: 'freelancer', include: [{ model: db.User, as: 'user' }] },
+      { model: db.Freelancer, as: 'freelancer', include: [{ model: db.User, as: 'freelancerUser' }] },
       { model: db.JobApplication, as: 'jobApplication' }
     ]
   });
+
+  // 🚀 Send notification to freelancer about new contract
+  try {
+    const userChannel = CentrifugoService.getUserChannel(freelancerUserId);
+    
+    await CentrifugoService.publishMessage(userChannel, {
+      type: 'contract_notification',
+      data: {
+        id: contractWithDetails.id,
+        title: 'New Contract Received',
+        message: `You have received a new contract from ${contractWithDetails.client.firstName} ${contractWithDetails.client.lastName}`,
+        contract: {
+          id: contractWithDetails.id,
+          workTitle: contractWithDetails.workTitle,
+          totalAmount: contractWithDetails.totalAmount,
+          contractStatus: contractWithDetails.contractStatus,
+          client: {
+            id: contractWithDetails.client.id,
+            firstName: contractWithDetails.client.firstName,
+            lastName: contractWithDetails.client.lastName
+          }
+        },
+        timestamp: new Date(),
+        action: {
+          type: 'view_contract',
+          url: `/contracts/${contractWithDetails.id}`
+        }
+      }
+    });
+    
+    console.log(`📋 Contract notification sent to freelancer ${freelancerUserId}`);
+  } catch (error) {
+    console.error('❌ Error sending contract notification:', error);
+    // Don't fail the request if notification fails
+  }
 
   res.status(201).json({
     message: 'Contract created successfully',
@@ -91,12 +154,29 @@ const getContracts = asyncHandler(async (req, res) => {
   if (role === 'client') {
     whereClause.clientId = userId;
   } else if (role === 'freelancer') {
-    whereClause.freelancerId = userId;
+    // For freelancers, we need to find contracts where the freelancer's userId matches
+    // First, find the freelancer record for this user
+    let freelancer = await db.Freelancer.findOne({
+      where: { userId: userId }
+    });
+    
+    if (freelancer) {
+      whereClause.freelancerId = freelancer.id;
+    } else {
+      // If no freelancer record exists, return empty results
+      whereClause.freelancerId = -1;
+    }
   } else {
+    // For both roles, check both client and freelancer associations
+    let freelancer = await db.Freelancer.findOne({
+      where: { userId: userId }
+    });
+    
+    
     whereClause = {
       [db.Sequelize.Op.or]: [
         { clientId: userId },
-        { freelancerId: userId }
+        freelancer ? { freelancerId: freelancer.id } : { freelancerId: -1 }
       ]
     };
   }
@@ -109,7 +189,7 @@ const getContracts = asyncHandler(async (req, res) => {
     where: whereClause,
     include: [
       { model: db.User, as: 'client' },
-      { model: db.Freelancer, as: 'freelancer', include: [{ model: db.User, as: 'user' }] },
+      { model: db.Freelancer, as: 'freelancer', include: [{ model: db.User, as: 'freelancerUser' }] },
       { model: db.JobApplication, as: 'jobApplication' }
     ],
     limit: parseInt(limit),
@@ -138,7 +218,7 @@ const getContractDetails = asyncHandler(async (req, res) => {
   const contract = await db.Contract.findByPk(contractId, {
     include: [
       { model: db.User, as: 'client' },
-      { model: db.Freelancer, as: 'freelancer', include: [{ model: db.User, as: 'user' }] },
+      { model: db.Freelancer, as: 'freelancer', include: [{ model: db.User, as: 'freelancerUser' }] },
       { model: db.JobApplication, as: 'jobApplication' },
       { model: db.Message, as: 'messages' }
     ]
@@ -170,22 +250,44 @@ const acceptContract = asyncHandler(async (req, res) => {
   }
 
   // Check if user is the freelancer
+  // First check if freelancerId matches userId directly (in case freelancerId is actually userId)
   if (contract.freelancerId !== userId) {
-    return res.status(403).json({ error: 'Not authorized to accept this contract' });
+    // If not, check if the freelancer record belongs to this user
+    const freelancer = await db.Freelancer.findByPk(contract.freelancerId);
+    if (!freelancer || freelancer.userId !== userId) {
+      return res.status(403).json({ error: 'Not authorized to accept this contract' });
+    }
   }
 
-  if (contract.contractStatus !== 'pending') {
+  if (contract.contractStatus !== 'pending' && contract.contractStatus !== 'draft') {
     return res.status(400).json({ error: 'Contract cannot be accepted in current status' });
   }
 
-  // Update contract status
+  // Update contract status and set start date when freelancer accepts
+  const currentDate = new Date();
   await contract.update({
     contractStatus: 'active',
-    signedAt: new Date()
+    signedAt: currentDate,
+    // Set the actual start date to current date when contract is accepted
+    contractStartDate: currentDate
   });
 
+  // If this contract is linked to a job application, update its status
+  if (contract.jobApplicationId) {
+    try {
+      await db.JobApplication.update(
+        { status: 'accepted' },
+        { where: { id: contract.jobApplicationId } }
+      );
+      console.log(`✅ Updated job application ${contract.jobApplicationId} status to 'accepted'`);
+    } catch (error) {
+      console.error('❌ Error updating job application status:', error);
+      // Don't fail the contract acceptance if job application update fails
+    }
+  }
+
   res.json({
-    message: 'Contract accepted successfully',
+    message: 'Contract accepted successfully. Work has started!',
     contract
   });
 });
@@ -239,7 +341,7 @@ const releasePayment = asyncHandler(async (req, res) => {
 
   const contract = await db.Contract.findByPk(contractId, {
     include: [
-      { model: db.Freelancer, as: 'freelancer', include: [{ model: db.User, as: 'user' }] }
+      { model: db.Freelancer, as: 'freelancer', include: [{ model: db.User, as: 'freelancerUser' }] }
     ]
   });
 

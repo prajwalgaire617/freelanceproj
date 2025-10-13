@@ -11,8 +11,9 @@ class CentrifugoService {
   constructor() {
     this.centrifugoUrl = process.env.CENTRIFUGO_URL || CENTRIFUGO.DEFAULT_URL;
     this.apiUrl = process.env.CENTRIFUGO_API_URL || CENTRIFUGO.API_URL;
-    this.apiKey = process.env.CENTRIFUGO_API_KEY;
-    this.secret = process.env.CENTRIFUGO_SECRET;
+    // Use the credentials from centrifugo.json if not in env
+    this.apiKey = process.env.CENTRIFUGO_API_KEY || 'worklab_centrifugo_api_key_2024';
+    this.secret = process.env.CENTRIFUGO_SECRET || 'worklab_centrifugo_secret_key_2024';
     
     if (!this.apiKey || !this.secret) {
       console.error('❌ Centrifugo API key or secret not configured');
@@ -26,6 +27,8 @@ class CentrifugoService {
     });
     
     console.log('🔧 Centrifugo Service initialized');
+    console.log('🔑 Using API Key:', this.apiKey.substring(0, 20) + '...');
+    console.log('🔐 Using Secret:', this.secret.substring(0, 20) + '...');
   }
 
   /**

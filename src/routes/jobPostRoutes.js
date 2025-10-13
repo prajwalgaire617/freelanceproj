@@ -2,7 +2,6 @@ const express = require('express');
 const router = express.Router();
 const { authenticateToken, requireRole } = require('../middleware/auth');
 const jobPostController = require('../controllers/jobPostController');
-
 /**
  * @swagger
  * tags:
@@ -387,11 +386,9 @@ router.get('/my-jobs', authenticateToken, requireRole('client'), jobPostControll
  *         description: Access denied - only clients can post jobs
  */
 router.post('/', authenticateToken, requireRole('client'), jobPostController.createJobPost);
-
 router.get('/:id', jobPostController.getJobById);
 router.put('/:id', authenticateToken, requireRole('client'), jobPostController.updateJobPost);
 router.delete('/:id', authenticateToken, requireRole('client'), jobPostController.deleteJobPost);
-
 /**
  * @swagger
  * /api/jobs/{id}/stats:

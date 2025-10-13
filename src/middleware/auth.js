@@ -170,7 +170,23 @@ const requireContractAccess = async (req, res, next) => {
       return res.status(404).json({ error: 'Contract not found' });
     }
 
-    if (contract.clientId !== userId && contract.freelancerId !== userId) {
+    // Check if user is client or freelancer
+    let isAuthorized = contract.clientId === userId;
+    
+    if (!isAuthorized) {
+      // Check if user is the freelancer (either direct match or through freelancer record)
+      if (contract.freelancerId === userId) {
+        isAuthorized = true;
+      } else {
+        // Check if the freelancer record belongs to this user
+        const freelancer = await db.Freelancer.findByPk(contract.freelancerId);
+        if (freelancer && freelancer.userId === userId) {
+          isAuthorized = true;
+        }
+      }
+    }
+    
+    if (!isAuthorized) {
       return res.status(403).json({ error: 'Not authorized to access this contract' });
     }
 

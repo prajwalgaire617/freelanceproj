@@ -21,6 +21,7 @@ const { RATE_LIMITS } = require('./constants');
 
 // Import routes
 const authRoutes = require('./routes/authRoutes');
+const oauthRoutes = require('./routes/oauthRoutes');
 const userRoutes = require('./routes/userRoutes');
 const jobApplicationRoutes = require('./routes/jobApplicationRoutes');
 const connectRoutes = require('./routes/connectRoutes');
@@ -39,6 +40,10 @@ const port = process.env.PORT || 3001;
 
 // Connect to database
 connectDB();
+
+// Initialize Passport
+const passport = require('./config/passport');
+app.use(passport.initialize());
 
 // Security middleware
 app.use(helmet({
@@ -62,6 +67,15 @@ const limiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => {
+    // Skip rate limiting for OPTIONS requests (CORS preflight)
+    if (req.method === 'OPTIONS') return true;
+    
+    // Skip rate limiting in development environment
+    if (process.env.NODE_ENV === 'development') return true;
+    
+    return false;
+  }
 });
 app.use(limiter);
 
@@ -124,6 +138,7 @@ app.get('/', (req, res) => {
 
 // API Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/auth', oauthRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/job-applications', jobApplicationRoutes);
 app.use('/api/connects', connectRoutes);

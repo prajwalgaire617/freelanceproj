@@ -388,6 +388,12 @@ const getMyJobs = asyncHandler(async (req, res) => {
         model: User,
         as: 'client',
         attributes: ['id', 'firstName', 'lastName', 'profileImage']
+      },
+      {
+        model: JobApplication,
+        as: 'applications',
+        attributes: ['id'],
+        required: false
       }
     ],
     order: [['createdAt', 'DESC']],
@@ -397,11 +403,17 @@ const getMyJobs = asyncHandler(async (req, res) => {
     subQuery: false
   });
 
+  // Add application count to each job
+  const jobsWithCounts = jobs.map(job => ({
+    ...job.toJSON(),
+    applicationCount: job.applications ? job.applications.length : 0
+  }));
+
   const totalPages = Math.ceil(count / limit);
 
   res.json({
     success: true,
-    jobs,
+    jobs: jobsWithCounts,
     pagination: {
       currentPage: parseInt(page),
       totalPages,
