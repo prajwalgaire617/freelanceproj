@@ -4,9 +4,42 @@ import axiosInstance from '../api/axios';
 class CentrifugoService {
   private centrifuge: Centrifuge | null = null;
   private subscriptions: Map<string, any> = new Map();
+  private isConnecting: boolean = false;
+  private connectionPromise: Promise<void> | null = null;
 
   async connect(userId: string) {
+    // If already connected, return
+    if (this.isConnected()) {
+      console.log('✅ Centrifugo already connected');
+      return;
+    }
+
+    // If currently connecting, wait for the connection
+    if (this.isConnecting && this.connectionPromise) {
+      console.log('🔄 Already connecting, waiting...');
+      return this.connectionPromise;
+    }
+
+    // Start new connection
+    this.isConnecting = true;
+    this.connectionPromise = this._connect(userId);
+    
     try {
+      await this.connectionPromise;
+    } finally {
+      this.isConnecting = false;
+      this.connectionPromise = null;
+    }
+  }
+
+  private async _connect(userId: string) {
+    try {
+      // Disconnect existing connection if any
+      if (this.centrifuge) {
+        this.centrifuge.disconnect();
+        this.centrifuge = null;
+      }
+
       // Get connection token from backend
       const response = await axiosInstance.post('/centrifugo/token', {
         userId,
@@ -229,10 +262,14 @@ class CentrifugoService {
       this.centrifuge = null;
       console.log('🔌 Centrifugo disconnected');
     }
+    
+    // Reset connection state
+    this.isConnecting = false;
+    this.connectionPromise = null;
   }
 
   isConnected(): boolean {
-    return this.centrifuge !== null && this.centrifuge.state === 'connected';
+    return this.centrifuge !== null && this.centrifuge.getState() === 'connected';
   }
 }
 

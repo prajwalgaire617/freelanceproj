@@ -4,46 +4,18 @@
   "admin_secret": "worklab_admin_secret_2024",
   "api_key": "worklab_centrifugo_api_key_2024",
   "allowed_origins": ["*"],
-  "websocket_compression": true,
-  "websocket_compression_threshold": 1024,
-  "websocket_compression_level": 3,
-  "websocket_read_buffer_size": 32768,
-  "websocket_write_buffer_size": 32768,
-  "websocket_write_timeout": "10s",
-  "websocket_ping_interval": "25s",
-  "websocket_pong_timeout": "5s",
-  "websocket_read_timeout": "60s",
-  "websocket_use_compression": true,
   "log_level": "info",
   "log_file": "centrifugo.log",
   "namespaces": [
     {
       "name": "chat",
-      "publish": true,
-      "subscribe_to_publish": true,
       "presence": true,
       "join_leave": true,
       "history_size": 100,
-      "history_ttl": "24h",
-      "recover": true,
-      "position": true,
-      "history_recover": true
-    }
-  ],
-  "channels": [
-    {
-      "name": "chat:conversation:*",
-      "publish": true,
-      "subscribe_to_publish": true,
-      "presence": true,
-      "join_leave": true,
-      "history_size": 50,
-      "history_ttl": "7d"
+      "history_ttl": "24h"
     },
     {
-      "name": "user:*",
-      "publish": true,
-      "subscribe_to_publish": true,
+      "name": "user",
       "presence": true,
       "join_leave": true,
       "history_size": 100,
