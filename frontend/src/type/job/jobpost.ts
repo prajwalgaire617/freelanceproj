@@ -37,5 +37,5 @@ export interface JobPost {
     rating?: number;
     reviewsCount?: number;
     paymentVerified?: boolean;
-  } | null;
+  };
 }
