@@ -4,20 +4,20 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Briefcase, Users, MessageSquare, FileText, Search, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { FreelancerSearch } from "@/components/client/FreeLancerSearch";
+import { FreelancerSearch } from "@/components/client/FreelancerSearch";
 import { JobPostForm } from "@/components/client/JobPostForm";
 import { JobApplications } from "@/components/client/JobApplication";
 import { MessagingInterface } from "@/components/client/MessagingInterface";
 import { ContractForm } from "@/components/client/ContractForm";
 import Header from "@/components/layout/Header";
 import { useAuth } from "@/context/AuthContext";
-import { useNotifications } from "@/context/NotificationContext";
+// import { useNotifications } from "@/context/NotificationContext";
 import axiosInstance from "@/api/axios";
 import { toast } from "sonner";
 
 export default function ClientDashboard() {
   const { user } = useAuth();
-  const { addNotification } = useNotifications();
+  // const { addNotification } = useNotifications();
   
   const [showJobPostForm, setShowJobPostForm] = useState(false);
   const [showContractForm, setShowContractForm] = useState(false);
