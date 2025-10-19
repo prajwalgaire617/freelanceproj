@@ -21,8 +21,9 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
-import MessageNotification from "@/components/notifications/MessageNotification";
-import NotificationDropdown from "@/components/notifications/NotificationDropdown";
+import { NovuInbox } from "../novu-inbox";
+// import MessageNotification from "@/components/notifications/MessageNotification";
+// import NotificationDropdown from "@/components/notifications/NotificationDropdown";
 
 interface NavItem {
   label: string;
@@ -55,10 +56,12 @@ const Header: React.FC<HeaderProps> = ({ navItems }) => {
           {/* Notifications */}
           {user && (
             <div className="flex items-center gap-2">
-              <NotificationDropdown />
+              {/* <NotificationDropdown />
               <MessageNotification 
                 userType={user.userType as "freelancer" | "client"}
-              />
+              /> */}
+              <NovuInbox />
+
             </div>
           )}
         </nav>
