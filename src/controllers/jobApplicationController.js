@@ -1,7 +1,8 @@
 const asyncHandler = require('express-async-handler');
 const db = require('../db');
 const { validationResult } = require('express-validator');
-
+const { Novu } = require('@novu/node');
+const novu = new Novu("a709df8448e3f85dc113d808f3d1c5a5");
 // @desc    Apply for a job
 // @route   POST /api/job-applications
 // @access  Private
@@ -21,6 +22,8 @@ const applyForJob = asyncHandler(async (req, res) => {
       { model: db.Organization, as: 'organization' }
     ]
   });
+
+  console.log(jobPost);
 
   if (!jobPost) {
     return res.status(404).json({ error: 'Job post not found' });
@@ -92,6 +95,28 @@ const applyForJob = asyncHandler(async (req, res) => {
       transaction
     });
 
+    try {
+      const clientId = jobPost?.clientId.toString();
+      console.log(clientId);
+      const freelancerName = `${applicationWithDetails.applicant.firstName} ${applicationWithDetails.applicant.lastName}`;
+
+// Get client (job owner)
+const client = applicationWithDetails.jobPost.client;
+const jobTitle = applicationWithDetails.jobPost.title;
+      await novu.trigger('freelancer-app-notification', {
+        to: {
+          subscriberId:clientId,
+        },
+        payload: {
+          clientName: jobPost.client.name,
+          freelancerName: freelancerName,
+          jobTitle: jobTitle,
+          jobPostId: jobPost.id,
+        },
+      });
+    } catch (notifyError) {
+      console.error('Novu notification failed:', notifyError.message);
+    }
     // Commit transaction
     await transaction.commit();
 

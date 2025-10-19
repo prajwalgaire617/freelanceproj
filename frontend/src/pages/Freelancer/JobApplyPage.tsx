@@ -112,6 +112,7 @@ const JobApplyPage: React.FC = () => {
 
       if (res.data.message) {
         setUserConnects((prev) => prev - (job.connectRequired || 0));
+        
         toast.success("Proposal submitted successfully!");
         navigate("/jobs");
       } else {
