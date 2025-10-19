@@ -25,6 +25,7 @@
   "author": "WorkLab Team",
   "license": "MIT",
   "dependencies": {
+    "@novu/node": "^2.6.6",
     "axios": "^1.7.9",
     "bcryptjs": "^2.4.3",
     "bull": "^4.16.5",
