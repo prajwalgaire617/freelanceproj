@@ -1,4 +1,5 @@
 import React from "react";
+import axiosInstance from "@/api/axios";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Upload } from "lucide-react";
@@ -10,17 +11,32 @@ interface PortfolioTabProps {
 }
 
 const PortfolioTab: React.FC<PortfolioTabProps> = ({ portfolioItems, setPortfolioItems }) => {
-  const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
 
-    const filePreviews = files.map((file) => ({
-      name: file.name,
-      type: file.type,
-      url: URL.createObjectURL(file),
-    }));
+    const token = localStorage.getItem("token");
+    const form = new FormData();
+    files.forEach((f) => form.append("files", f));
 
-   setPortfolioItems([...portfolioItems, ...filePreviews]);
+    try {
+      const res = await axiosInstance.post("/auth/profile/portfolio/upload", form, {
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          "Content-Type": "multipart/form-data",
+        },
+      });
+      const uploaded = Array.isArray(res.data?.files) ? res.data.files : [];
+      const apiBase = axiosInstance.defaults.baseURL || "";
+      const serverOrigin = apiBase.replace(/\/?api\/?$/, "");
+      const items = uploaded.map((f: any) => ({ name: f.name, type: f.type, url: f.url?.startsWith('/') ? `${serverOrigin}${f.url}` : f.url }));
+      setPortfolioItems([...portfolioItems, ...items]);
+    } catch (err) {
+      console.error("Portfolio upload failed", err);
+    } finally {
+      // reset input value to allow re-uploading same files if desired
+      e.currentTarget.value = "";
+    }
   };
 
 const removeItem = (index: number) => {
@@ -64,18 +80,25 @@ const removeItem = (index: number) => {
         {/* Portfolio Grid */}
         {portfolioItems.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-            {portfolioItems.map((item, index) => (
+            {portfolioItems.map((item, index) => {
+              const url = item.url;
+              const mime = item.type || "";
+              const isImage = mime.includes("image") || /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(url);
+              const isPdf = mime.includes("pdf") || /\.pdf$/i.test(url);
+              return (
               <Card key={index} className="relative group overflow-hidden">
                 <CardContent className="pt-4">
-                  {item.type.includes("image") ? (
+                  {isImage ? (
                     <img
-                      src={item.url}
+                      src={url}
                       alt={item.name}
                       className="w-full h-40 object-cover rounded-lg mb-3"
                     />
-                  ) : item.type.includes("pdf") ? (
+                  ) : isPdf ? (
                     <div className="aspect-video bg-muted flex items-center justify-center rounded-lg mb-3">
-                      <p className="text-sm text-muted-foreground">{item.name}</p>
+                      <a href={url} target="_blank" rel="noreferrer" className="text-sm underline">
+                        Open PDF
+                      </a>
                     </div>
                   ) : (
                     <div className="aspect-video bg-muted rounded-lg mb-3 flex items-center justify-center">
@@ -94,7 +117,8 @@ const removeItem = (index: number) => {
                   </Button>
                 </CardContent>
               </Card>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <p className="text-center text-muted-foreground">

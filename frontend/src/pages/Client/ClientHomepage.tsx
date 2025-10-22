@@ -105,7 +105,7 @@ export default function ClientDashboard() {
     <div className="min-h-screen bg-background">
         {/* Header */}
       <div className=" flex justify-between">
-      <Header navItems={ClientNav} />
+      <Header navItems={ClientNav} showLogout />
        <Button onClick={() => setShowJobPostForm(true)} className=" mt-2 mr-2">
             <Plus className="w-4 h-4 mr-1" />
             Post a Job

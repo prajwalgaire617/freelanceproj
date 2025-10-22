@@ -1,12 +1,8 @@
 
-import RegisterForm from "@/components/register-form";
+import EnhancedRegisterForm from "@/components/EnhancedRegisterForm";
 
 function SignUpPage() {
-    return(
-        <div className=" flex justify-center items-center min-h-screen ">
-  <RegisterForm/>
-  </div>
-    );
+    return <EnhancedRegisterForm />;
 }
 
 export default SignUpPage;

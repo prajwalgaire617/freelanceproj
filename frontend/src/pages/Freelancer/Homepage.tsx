@@ -16,7 +16,7 @@ function Homepage() {
   ];
   return (
     <div className="min-h-screen bg-background text-foreground transition-colors duration-200">
-      <Header navItems={freelancerNav} />
+      <Header navItems={freelancerNav} showLogout />
       <HeroSection />
       <CategoriesSection />
       <JobsSection />

@@ -1,6 +1,6 @@
 // // import React, { useState, useEffect } from "react";
 // // import { useLocation } from "react-router-dom";
-// // import axios from "axios";
+// // import axiosInstance from "@/api/axios";
 // // import Header from "@/components/layout/Header";
 // // import JobsSearch from "@/components/jobsdetails/JobSearch";
 // // import JobCard from "@/components/jobsdetails/JobCard";
@@ -513,7 +513,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import {  useLocation } from "react-router-dom";
-import axios from "axios";
+import axiosInstance from "@/api/axios";
 import Header from "@/components/layout/Header";
 import JobsSearch from "@/components/jobsdetails/JobSearch";
 import JobCard from "@/components/jobsdetails/JobCard";
@@ -576,10 +576,22 @@ const JobsPage: React.FC = () => {
       if (filters.budgetMax !== undefined) params.budgetMax = filters.budgetMax;
       if (filters.skills && filters.skills.length > 0) params.skills = filters.skills;
 
-      const response = await axios.get(
-        `http://localhost:3000/api/jobs`,
+      // Map UI params to backend search API
+      const searchParams: any = {
+        q: searchTerm || undefined,
+        page,
+        limit,
+      };
+      if (filters.jobType) searchParams.jobType = filters.jobType;
+      if (filters.experienceLevel) searchParams.experienceLevel = filters.experienceLevel;
+      if (filters.budgetMin !== undefined) searchParams.budgetMin = filters.budgetMin;
+      if (filters.budgetMax !== undefined) searchParams.budgetMax = filters.budgetMax;
+      if (filters.skills && filters.skills.length > 0) searchParams.skills = filters.skills.join(",");
+
+      const response = await axiosInstance.get(
+        "/jobs/search",
         {
-          params,
+          params: searchParams,
           signal: abortControllerRef.current.signal,
         }
       );
@@ -587,7 +599,7 @@ const JobsPage: React.FC = () => {
       const data = response.data;
       if (!data.success) throw new Error(data.message || "Failed to fetch");
 
-      const jobsArray = Array.isArray(data.jobs) ? data.jobs : [data.job];
+      const jobsArray = Array.isArray(data.jobs) ? data.jobs : (data.job ? [data.job] : []);
       setJobs(jobsArray);
     } catch (err: any) {
       if (err.name === "CanceledError" || err.code === "ERR_CANCELED") return;

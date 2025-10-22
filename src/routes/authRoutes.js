@@ -1,6 +1,9 @@
 const express = require('express');
 const passport = require('passport');
 const router = express.Router();
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 
 const authController = require('../controllers/authController');
 const { authenticateToken } = require('../middleware/auth');
@@ -11,6 +14,62 @@ const {
   validateProfileUpdate,
   validateChangePassword
 } = require('../middleware/validation');
+
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadPath = path.join(__dirname, '../../uploads/profiles');
+    if (!fs.existsSync(uploadPath)) {
+      fs.mkdirSync(uploadPath, { recursive: true });
+    }
+    cb(null, uploadPath);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'profile-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'), false);
+    }
+  }
+});
+
+// Separate storage for portfolio uploads (allow images and pdf)
+const storagePortfolio = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadPath = path.join(__dirname, '../../uploads/portfolio');
+    if (!fs.existsSync(uploadPath)) {
+      fs.mkdirSync(uploadPath, { recursive: true });
+    }
+    cb(null, uploadPath);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'portfolio-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const uploadPortfolio = multer({
+  storage: storagePortfolio,
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/') || file.mimetype === 'application/pdf') {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image or PDF files are allowed'), false);
+    }
+  }
+});
 
 /**
  * @swagger
@@ -106,7 +165,7 @@ const {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.post('/register', validateUserRegistration, authController.register);
+router.post('/register', upload.single('profileImage'), validateUserRegistration, authController.register);
 
 /**
  * @swagger
@@ -142,10 +201,10 @@ router.post('/register', validateUserRegistration, authController.register);
  */
 router.post('/login', validateUserLogin, authController.login);
 
-// @route   GET /api/auth/verify-email
-// @desc    Verify email
+// @route   POST /api/auth/verify-email
+// @desc    Verify email with OTP
 // @access  Public
-router.get('/verify-email', authController.verifyEmail);
+router.post('/verify-email', authController.verifyEmail);
 
 // @route   POST /api/auth/resend-verification
 // @desc    Resend verification email
@@ -170,12 +229,36 @@ router.get('/me', authenticateToken, authController.getMe);
 // @route   PUT /api/auth/profile
 // @desc    Update user profile
 // @access  Private
-router.put('/profile', authenticateToken, validateProfileUpdate, authController.updateProfile);
+router.put('/profile', authenticateToken, upload.single('profileImage'), validateProfileUpdate, authController.updateProfile);
+router.put('/profile/skills', authenticateToken, authController.updateSkills);
+router.put('/profile/experiences', authenticateToken, authController.updateExperiences);
+router.put('/profile/portfolio', authenticateToken, authController.updatePortfolio);
+router.post('/profile/portfolio/upload', authenticateToken, uploadPortfolio.array('files', 10), authController.uploadPortfolioItems);
 
 // @route   PUT /api/auth/change-password
 // @desc    Change password
 // @access  Private
 router.put('/change-password', authenticateToken, validateChangePassword, authController.changePassword);
+
+// @route   POST /api/auth/logout
+// @desc    Logout user
+// @access  Private
+router.post('/logout', authenticateToken, authController.logout);
+
+// @route   POST /api/auth/logout-all
+// @desc    Logout from all devices
+// @access  Private
+router.post('/logout-all', authenticateToken, authController.logoutAll);
+
+// @route   GET /api/auth/sessions
+// @desc    Get active sessions
+// @access  Private
+router.get('/sessions', authenticateToken, authController.getActiveSessions);
+
+// @route   DELETE /api/auth/sessions/:sessionId
+// @desc    Invalidate specific session
+// @access  Private
+router.delete('/sessions/:sessionId', authenticateToken, authController.invalidateSession);
 
 // @route   DELETE /api/auth/deactivate
 // @desc    Deactivate account
@@ -183,5 +266,8 @@ router.put('/change-password', authenticateToken, validateChangePassword, authCo
 router.delete('/deactivate', authenticateToken, authController.deactivateAccount);
 
 // OAuth routes moved to separate oauthRoutes.js file
+
+// Novu test notification route
+router.post('/notify-test', authenticateToken, authController.notifyTest);
 
 module.exports = router;

@@ -12,6 +12,7 @@ import {
 } from "react-icons/fa";
 import { HiX } from "react-icons/hi";
 import { GoChevronRight } from "react-icons/go";
+import { useAuth } from "../../context/AuthContext";
 
 import {
   SubLinks1,
@@ -25,6 +26,7 @@ import SecondLink from "./SecondLink";
 const Navbar: React.FC = () => {
   // ------------- Routing -------------
   const navigate = useNavigate();
+  const { user, logout, isAuthenticated } = useAuth();
 
   // ------------- State -------------
   const [searchState, setSearchState] = useState<"hidden" | "block">("hidden");
@@ -45,9 +47,7 @@ const Navbar: React.FC = () => {
   const [mobileSubListII, setMobileSubListII] = useState(false);
   const [mobileSubListIII, setMobileSubListIII] = useState(false);
 
-  const [isUserLoggedIn, setIsUserLoggedIn] = useState(false);
   const [SubLinks2New, setSubLinks2New] = useState(SubLinks2);
-  const [userData, setUserData] = useState<any>(null);
   const [se, setSe] = useState<number | null>(null);
 
   // ------------- Helpers -------------
@@ -113,22 +113,19 @@ const Navbar: React.FC = () => {
     setSe((prev) => (prev === id ? null : id));
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("userData");
-    setIsUserLoggedIn(false);
-    navigate("/");
-    setTimeout(() => window.location.reload(), 100);
+  const handleLogout = async () => {
+    try {
+      await logout();
+      navigate("/");
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
   };
 
   const handleProfileView = () => navigate("/profile");
 
   // ------------- Auth / role logic -------------
   useEffect(() => {
-    const storedUser = localStorage.getItem("userData");
-    const user = storedUser ? JSON.parse(storedUser) : null;
-    setUserData(user);
-    setIsUserLoggedIn(!!user);
-
     // Role-based menu filtering (same logic you had)
     let newSubLinks2 = [...SubLinks2];
 
@@ -416,7 +413,7 @@ const Navbar: React.FC = () => {
           </form>
 
           {/* Auth buttons */}
-          {!isUserLoggedIn ? (
+          {!isAuthenticated ? (
             <>
               <button
                 className="xl:mx-7 mx-3 text-zinc-700 text-[1.03rem] font-semibold hover:text-cyan-700"
@@ -436,6 +433,7 @@ const Navbar: React.FC = () => {
               <button
                 className="flex items-center justify-center w-12 h-12 rounded-full bg-gradient-to-tr from-gray-200 to-blue-300 text-gray-800 hover:from-gray-300 hover:to-blue-400"
                 onClick={handleProfileView}
+                title={`${user?.firstName || 'User'} ${user?.lastName || ''}`}
               >
                 <FaUserCircle className="h-6 w-6" />
               </button>
@@ -771,13 +769,38 @@ const Navbar: React.FC = () => {
             </li>
           </ul>
 
-          {/* Login button (mobile) */}
-          <button
-            className="text-zinc-700 text-[1.03rem] font-semibold hover:text-cyan-700"
-            onClick={() => navigate("/account-security/login")}
-          >
-            Login
-          </button>
+          {/* Auth buttons (mobile) */}
+          {!isAuthenticated ? (
+            <div className="flex flex-col space-y-3">
+              <button
+                className="text-zinc-700 text-[1.03rem] font-semibold hover:text-cyan-700"
+                onClick={() => navigate("/login")}
+              >
+                Login
+              </button>
+              <button
+                className="font-semibold bg-gradient-to-tr from-sky-200 to-cyan-200 py-2 px-3 rounded-xl text-gray-800 hover:from-cyan-300 hover:to-sky-200"
+                onClick={() => navigate("/signup")}
+              >
+                Sign Up
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col space-y-3">
+              <div className="flex items-center space-x-2">
+                <FaUserCircle className="h-6 w-6 text-gray-600" />
+                <span className="text-zinc-700 text-[1.03rem] font-semibold">
+                  {user?.firstName || 'User'} {user?.lastName || ''}
+                </span>
+              </div>
+              <button
+                className="font-semibold bg-gradient-to-tr from-red-200 to-red-400 py-2 px-3 rounded-xl text-gray-800 hover:from-red-300 hover:to-red-500"
+                onClick={handleLogout}
+              >
+                Log Out
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </nav>

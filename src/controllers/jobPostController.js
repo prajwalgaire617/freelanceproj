@@ -1,6 +1,7 @@
 const { JobPost, User, JobApplication, Freelancer, sequelize } = require('../db');
 const { Op } = require('sequelize');
 const asyncHandler = require('express-async-handler');
+const searchService = require('../services/search/opensearchService');
 
 /**
  * @swagger
@@ -91,6 +92,10 @@ const createJobPost = asyncHandler(async (req, res) => {
       }
     ]
   });
+
+  try {
+    await searchService.indexJob(jobWithClient);
+  } catch (e) {}
 
   res.status(201).json({
     success: true,
@@ -233,6 +238,10 @@ const updateJobPost = asyncHandler(async (req, res) => {
 
   await job.update(updateData);
 
+  try {
+    await searchService.updateJob(job);
+  } catch (e) {}
+
   res.json({
     success: true,
     message: 'Job updated successfully',
@@ -260,10 +269,68 @@ const deleteJobPost = asyncHandler(async (req, res) => {
 
   await job.destroy();
 
+  try {
+    await searchService.deleteJob(id);
+  } catch (e) {}
+
   res.json({
     success: true,
     message: 'Job deleted successfully'
   });
+});
+
+// @desc    Search jobs via OpenSearch
+// @route   GET /api/jobs/search
+// @access  Public
+const searchJobs = asyncHandler(async (req, res) => {
+  const {
+    q,
+    skills,
+    budgetMin,
+    budgetMax,
+    jobType,
+    experienceLevel,
+    page = 1,
+    limit = 10,
+  } = req.query;
+
+  const skillsArr = typeof skills === 'string' && skills.length
+    ? skills.split(',').map(s => s.trim()).filter(Boolean)
+    : Array.isArray(skills) ? skills : [];
+
+  const result = await searchService.searchJobs({
+    q,
+    skills: skillsArr,
+    budgetMin: budgetMin != null ? Number(budgetMin) : undefined,
+    budgetMax: budgetMax != null ? Number(budgetMax) : undefined,
+    jobType,
+    experienceLevel,
+    page: Number(page),
+    limit: Number(limit),
+  });
+
+  const totalPages = Math.ceil(result.total / Number(limit || 10));
+
+  res.json({
+    success: true,
+    jobs: result.results,
+    pagination: {
+      currentPage: Number(page || 1),
+      totalPages,
+      totalJobs: result.total,
+      hasNext: Number(page || 1) < totalPages,
+      hasPrev: Number(page || 1) > 1
+    }
+  });
+});
+
+// @desc    Suggest job titles for typeahead
+// @route   GET /api/jobs/suggest
+// @access  Public
+const suggestJobs = asyncHandler(async (req, res) => {
+  const { q, limit = 5 } = req.query;
+  const suggestions = await searchService.suggestJobTitles({ q, limit: Number(limit) });
+  res.json({ success: true, suggestions });
 });
 
 // @desc    Get job statistics
@@ -433,5 +500,7 @@ module.exports = {
   getJobStats,
   getFeaturedJobs,
   getUrgentJobs,
-  getMyJobs
+  getMyJobs,
+  searchJobs,
+  suggestJobs
 };

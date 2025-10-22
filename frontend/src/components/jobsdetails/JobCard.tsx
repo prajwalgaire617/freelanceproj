@@ -1,5 +1,4 @@
 import React from "react";
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardHeader,
@@ -35,7 +34,13 @@ const JobCard: React.FC<JobCardProps> = ({ job, onViewDetails }) => {
       : "Not specified";
 
   return (
-    <Card className="bg-transparent border border-border shadow-none hover:shadow-md hover:bg-accent/50 transition cursor-pointer">
+    <Card
+      className="bg-transparent border border-border shadow-none hover:shadow-md hover:bg-accent/50 transition cursor-pointer"
+      onClick={onViewDetails}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onViewDetails(); }}
+    >
       <CardHeader>
         <CardTitle className="text-lg font-semibold">{job.title}</CardTitle>
         <CardDescription className="text-sm text-muted-foreground">
@@ -70,7 +75,6 @@ const JobCard: React.FC<JobCardProps> = ({ job, onViewDetails }) => {
           <div>Client: {clientName}</div>
           <div>Timezone: {job.timezone || "N/A"}</div>
         </div>
-        <Button onClick={onViewDetails}>View Details</Button>
       </CardFooter>
     </Card>
   );

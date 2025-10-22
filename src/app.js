@@ -52,9 +52,12 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       scriptSrc: ["'self'"],
-      imgSrc: ["'self'", "data:", "https:"],
+      // Allow images from same origin, data URLs, and any http/https origins (e.g., API server serving /uploads)
+      imgSrc: ["'self'", "data:", "https:", "http:"],
     },
   },
+  // Permit cross-origin resource loading for images to avoid CORP blocking in browsers
+  crossOriginResourcePolicy: { policy: "cross-origin" },
 }));
 
 // Rate limiting

@@ -10,16 +10,17 @@ import { type ProfileData } from "../../../type/job/profiledata";
 interface ProfileHeaderProps {
   profileData: ProfileData;
   onSave: () => void;
+  photoUrl?: string;
 }
 
-export default function ProfileHeader({ profileData, onSave }: ProfileHeaderProps) {
+export default function ProfileHeader({ profileData, onSave, photoUrl }: ProfileHeaderProps) {
   return (
     <div className="border-b bg-card">
       <div className="container mx-auto px-4 py-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-6">
             <Avatar className="h-24 w-24">
-              <AvatarImage src="/placeholder.svg" />
+              <AvatarImage src={photoUrl || "/placeholder.svg"} />
               <AvatarFallback>JD</AvatarFallback>
             </Avatar>
             <div>

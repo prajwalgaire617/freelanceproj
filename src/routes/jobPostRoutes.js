@@ -152,6 +152,12 @@ router.get('/featured', jobPostController.getFeaturedJobs);
  */
 router.get('/urgent', jobPostController.getUrgentJobs);
 
+// Search jobs via OpenSearch
+router.get('/search', jobPostController.searchJobs);
+
+// Suggestions for typeahead
+router.get('/suggest', jobPostController.suggestJobs);
+
 /**
  * @swagger
  * /api/jobs/my-jobs:

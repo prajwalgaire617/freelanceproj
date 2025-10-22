@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import axiosInstance from "@/api/axios";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import Header from "@/components/layout/Header";
@@ -17,6 +18,7 @@ export default function FreelancerProfile() {
 
 
     const [activeTab, setActiveTab] = useState("personal");
+    const [photoUrl, setPhotoUrl] = useState<string | undefined>(undefined);
     const [verificationStatus, setVerificationStatus] = useState<VerificationStatus>({
         emailVerified: true,
         phoneVerified: false,
@@ -25,35 +27,104 @@ export default function FreelancerProfile() {
         email: "john.doe@example.com",
     });
     const [profileData, setProfileData] = useState<ProfileData>({
-        name: "John Doe",
-        bio: "Full-stack developer with 5+ years of experience in React, Node.js, and cloud technologies.",
-        location: "San Francisco, CA",
-        hourlyRate: "75",
+        name: "",
+        bio: "",
+        location: "",
+        hourlyRate: "",
         availability: "available",
-        skills: ["React", "TypeScript", "Node.js", "AWS"],
-        experience: [
-
-        ],
-        certifications: ["AWS Certified Developer", "Scrum Master"],
+        skills: [],
+        experience: [],
+        certifications: [],
         portfolioItems: []
     });
 
 
 
-    const handleSave = () => {
-        alert({
-            title: "Profile Updated",
-            description: "Your profile has been successfully updated.",
-        });
+    useEffect(() => {
+        const load = async () => {
+            try {
+                const token = localStorage.getItem("token");
+                if (!token) return;
+                const res = await axiosInstance.get("/auth/me", { headers: { Authorization: `Bearer ${token}` } });
+                const u = res.data?.user;
+                if (u) {
+                    const apiBase = axiosInstance.defaults.baseURL || "";
+                    const serverOrigin = apiBase.replace(/\/?api\/?$/, "");
+                    setProfileData((prev) => ({
+                        ...prev,
+                        name: [u.firstName, u.lastName].filter(Boolean).join(" ") || prev.name,
+                        bio: u.bio || prev.bio,
+                        location: u.location || prev.location,
+                        hourlyRate: (u.hourlyRate != null ? String(u.hourlyRate) : prev.hourlyRate),
+                        availability: u.availability || prev.availability,
+                        skills: Array.isArray(u.skills) ? u.skills : prev.skills,
+                        experience: Array.isArray(u.experiences) ? u.experiences : prev.experience,
+                        portfolioItems: Array.isArray(u.portfolioItems)
+                          ? u.portfolioItems.map((it: any) => ({
+                              ...it,
+                              url: typeof it.url === 'string' && it.url.startsWith('/') ? `${serverOrigin}${it.url}` : it.url,
+                            }))
+                          : prev.portfolioItems,
+                    }));
+                    if (u.profileImage) {
+                        setPhotoUrl(`${serverOrigin}${u.profileImage}`);
+                    }
+                }
+            } catch {}
+        };
+        load();
+    }, []);
+
+    const handleSave = async () => {
+        try {
+            const token = localStorage.getItem("token");
+            const [firstName, ...rest] = (profileData.name || "").trim().split(" ");
+            const lastName = rest.join(" ");
+            await axiosInstance.put(
+                "/auth/profile",
+                {
+                    firstName: firstName || undefined,
+                    lastName: lastName || undefined,
+                    bio: profileData.bio || undefined,
+                },
+                { headers: token ? { Authorization: `Bearer ${token}` } : undefined }
+            );
+        } catch (e) {
+            console.error(e);
+        }
     };
 
-    const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
-        if (file) {
-            alert({
-                title: "Photo Uploaded",
-                description: "Your profile photo has been updated.",
+        if (!file) return;
+
+        // Optimistic preview
+        const localUrl = URL.createObjectURL(file);
+        setPhotoUrl(localUrl);
+
+        try {
+            const formData = new FormData();
+            formData.append("profileImage", file);
+
+            const token = localStorage.getItem("token");
+            const response = await axiosInstance.put("/auth/profile", formData, {
+                headers: {
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                    // Override default JSON content-type for multipart upload
+                    "Content-Type": "multipart/form-data",
+                },
             });
+
+            const updatedUser = response.data?.user;
+            if (updatedUser?.profileImage) {
+                const apiBase = axiosInstance.defaults.baseURL || "";
+                // Remove trailing /api if present to get server origin
+                const serverOrigin = apiBase.replace(/\/?api\/?$/, "");
+                setPhotoUrl(`${serverOrigin}${updatedUser.profileImage}`);
+            }
+        } catch (err) {
+            console.error("Failed to upload profile image", err);
+            // Revert optimistic preview on error if desired
         }
     };
 
@@ -63,17 +134,31 @@ export default function FreelancerProfile() {
         { id: 3, title: "Bug Fixing", date: "Jan 5, 2024", amount: 300 },
     ];
 
-    const addSkill = (skill: string) => {
-        if (skill && !profileData.skills.includes(skill)) {
-            setProfileData({ ...profileData, skills: [...profileData.skills, skill] });
-        }
+    const addSkill = async (skill: string) => {
+        if (!skill || profileData.skills.includes(skill)) return;
+        const newSkills = [...profileData.skills, skill];
+        setProfileData({ ...profileData, skills: newSkills });
+        try {
+            const token = localStorage.getItem("token");
+            await axiosInstance.put(
+                "/auth/profile/skills",
+                { skills: newSkills },
+                { headers: token ? { Authorization: `Bearer ${token}` } : undefined }
+            );
+        } catch (e) { console.error(e); }
     };
 
-    const removeSkill = (skill: string) => {
-        setProfileData({
-            ...profileData,
-            skills: profileData.skills.filter(s => s !== skill)
-        });
+    const removeSkill = async (skill: string) => {
+        const newSkills = profileData.skills.filter(s => s !== skill);
+        setProfileData({ ...profileData, skills: newSkills });
+        try {
+            const token = localStorage.getItem("token");
+            await axiosInstance.put(
+                "/auth/profile/skills",
+                { skills: newSkills },
+                { headers: token ? { Authorization: `Bearer ${token}` } : undefined }
+            );
+        } catch (e) { console.error(e); }
     };
 
     const freelancerNav = [
@@ -86,10 +171,10 @@ export default function FreelancerProfile() {
 
     return (
         <div className="min-h-screen bg-background">
-            <Header navItems={freelancerNav} />
+            <Header navItems={freelancerNav} showLogout />
             {/* Header */}
 
-            <ProfileHeader profileData={profileData} onSave={handleSave} />
+            <ProfileHeader profileData={profileData} onSave={handleSave} photoUrl={photoUrl} />
 
             {/* Main Content */}
             <div className="container mx-auto px-4 py-8">
@@ -109,6 +194,7 @@ export default function FreelancerProfile() {
                             profileData={profileData}
                             setProfileData={setProfileData}
                             onPhotoUpload={handlePhotoUpload}
+                            photoUrl={photoUrl}
                         />
                     </TabsContent>
 
@@ -125,9 +211,25 @@ export default function FreelancerProfile() {
                     <TabsContent value="portfolio">
                         <PortfolioTab
                             portfolioItems={profileData.portfolioItems}
-                            setPortfolioItems={(items) =>
-                                setProfileData((prev) => ({ ...prev, portfolioItems: items }))
-                            }
+                            setPortfolioItems={async (items) => {
+                                setProfileData((prev) => ({ ...prev, portfolioItems: items }));
+                                try {
+                                    const token = localStorage.getItem("token");
+                                    const apiBase = axiosInstance.defaults.baseURL || "";
+                                    const serverOrigin = apiBase.replace(/\/?api\/?$/, "");
+                                    const normalized = items.map((it: any) => ({
+                                        ...it,
+                                        url: typeof it.url === 'string' && it.url.startsWith(serverOrigin)
+                                          ? it.url.slice(serverOrigin.length)
+                                          : it.url,
+                                    }));
+                                    await axiosInstance.put(
+                                        "/auth/profile/portfolio",
+                                        { portfolioItems: normalized },
+                                        { headers: token ? { Authorization: `Bearer ${token}` } : undefined }
+                                    );
+                                } catch (e) { console.error(e); }
+                            }}
                         />
                     </TabsContent>
 
@@ -136,9 +238,17 @@ export default function FreelancerProfile() {
                     <TabsContent value="experience">
                         <ExperienceTab
                             experiences={profileData.experience}
-                            setExperiences={(items) =>
-                                setProfileData((prev) => ({ ...prev, experience: items }))
-                            }
+                            setExperiences={async (items) => {
+                                setProfileData((prev) => ({ ...prev, experience: items }));
+                                try {
+                                    const token = localStorage.getItem("token");
+                                    await axiosInstance.put(
+                                        "/auth/profile/experiences",
+                                        { experiences: items },
+                                        { headers: token ? { Authorization: `Bearer ${token}` } : undefined }
+                                    );
+                                } catch (e) { console.error(e); }
+                            }}
                         />
                     </TabsContent>
 

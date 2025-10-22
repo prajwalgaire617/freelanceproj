@@ -3,7 +3,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { CKEditor } from "@ckeditor/ckeditor5-react";
+import ClassicEditor from "@ckeditor/ckeditor5-build-classic";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -81,7 +82,7 @@ export function JobPostForm({ open, onClose }: JobPostFormProps) {
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-5xl w-[90vw] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Post a New Job</DialogTitle>
         </DialogHeader>
@@ -102,14 +103,20 @@ export function JobPostForm({ open, onClose }: JobPostFormProps) {
           {/* Description */}
           <div className="space-y-2">
             <Label htmlFor="description">Job Description</Label>
-            <Textarea
-              id="description"
-              placeholder="Describe your project in detail..."
-              rows={6}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              required
-            />
+            <div className="border rounded">
+              <CKEditor
+                editor={ClassicEditor as any}
+                data={description}
+                onReady={(editor: any) => {
+                  const el = editor?.ui?.view?.editable?.element as HTMLElement | undefined;
+                  if (el) el.style.minHeight = '360px';
+                }}
+                onChange={(_, editor) => {
+                  const data = editor.getData();
+                  setDescription(data);
+                }}
+              />
+            </div>
           </div>
 
           {/* Budget */}

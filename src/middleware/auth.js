@@ -1,7 +1,8 @@
 const jwt = require('jsonwebtoken');
 const db = require('../db/models/index.js');
+const sessionService = require('../services/sessionService');
 
-// @desc    Verify JWT token
+// @desc    Verify JWT token with session validation
 // @access  Private
 const authenticateToken = async (req, res, next) => {
   try {
@@ -12,33 +13,26 @@ const authenticateToken = async (req, res, next) => {
       return res.status(401).json({ error: 'Access token required' });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'xzoxnco02983h4b2o3soj');
-    
-    // Get user from database
-    const user = await db.User.findByPk(decoded.id, {
-      attributes: { exclude: ['password', 'emailVerificationToken', 'passwordResetToken'] }
-    });
+    // Validate session using session service
+    const sessionData = await sessionService.validateSession(token);
 
-    if (!user) {
-      return res.status(401).json({ error: 'Invalid token' });
-    }
-
-    if (!user.isActive) {
-      return res.status(401).json({ error: 'Account is deactivated' });
-    }
-
-    req.userId = user.id;
-    req.user = user;
-    req.userType = user.userType;
+    req.userId = sessionData.userId;
+    req.user = sessionData.user;
+    req.userType = sessionData.user.userType;
+    req.sessionId = sessionData.sessionId;
     next();
   } catch (error) {
-    if (error.name === 'JsonWebTokenError') {
-      return res.status(401).json({ error: 'Invalid token' });
+    if (error.message === 'Invalid token' || error.message === 'Token expired') {
+      return res.status(401).json({ error: error.message });
     }
-    if (error.name === 'TokenExpiredError') {
-      return res.status(401).json({ error: 'Token expired' });
+    if (error.message === 'Session not found or expired') {
+      return res.status(401).json({ error: 'Session expired. Please login again.' });
     }
-    return res.status(500).json({ error: 'Token verification failed' });
+    if (error.message === 'User not found or inactive') {
+      return res.status(401).json({ error: 'Account is deactivated' });
+    }
+    console.error('Authentication error:', error);
+    return res.status(500).json({ error: 'Authentication failed' });
   }
 };
 
@@ -103,23 +97,23 @@ const optionalAuth = async (req, res, next) => {
       req.userId = null;
       req.user = null;
       req.userType = null;
+      req.sessionId = null;
       return next();
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'xzoxnco02983h4b2o3soj');
-    
-    const user = await db.User.findByPk(decoded.id, {
-      attributes: { exclude: ['password', 'emailVerificationToken', 'passwordResetToken'] }
-    });
-
-    if (user && user.isActive) {
-      req.userId = user.id;
-      req.user = user;
-      req.userType = user.userType;
-    } else {
+    // Try to validate session, but don't fail if invalid
+    try {
+      const sessionData = await sessionService.validateSession(token);
+      req.userId = sessionData.userId;
+      req.user = sessionData.user;
+      req.userType = sessionData.user.userType;
+      req.sessionId = sessionData.sessionId;
+    } catch (error) {
+      // If session validation fails, set user to null but continue
       req.userId = null;
       req.user = null;
       req.userType = null;
+      req.sessionId = null;
     }
 
     next();
@@ -127,6 +121,7 @@ const optionalAuth = async (req, res, next) => {
     req.userId = null;
     req.user = null;
     req.userType = null;
+    req.sessionId = null;
     next();
   }
 };

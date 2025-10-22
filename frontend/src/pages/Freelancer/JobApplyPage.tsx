@@ -4,7 +4,8 @@ import axiosInstance from "@/api/axios";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { CKEditor } from '@ckeditor/ckeditor5-react';
+import ClassicEditor from '@ckeditor/ckeditor5-build-classic';
 import { Badge } from "@/components/ui/badge";
 import Header from "@/components/layout/Header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,6 +26,7 @@ const JobApplyPage: React.FC = () => {
   const [timeline, setTimeline] = useState("");
   const [userConnects, setUserConnects] = useState(0);
   const [connectError, setConnectError] = useState<string | null>(null);
+  const [useClientBudget, setUseClientBudget] = useState(false);
     const freelancerNav = [
     { label: "Freelancer Search", href: "/freelancers" },
     { label: "Post Job", href: "/post-job" },
@@ -87,7 +89,8 @@ const JobApplyPage: React.FC = () => {
   if (!job) return null;
 
   const handleSubmit = async () => {
-    if (bid === "" || !coverLetter.trim()) {
+    const plainCover = coverLetter.replace(/<[^>]*>/g, "").trim();
+    if ((!useClientBudget && bid === "") || !plainCover) {
       toast.error("Please fill in all fields!");
       return;
     }
@@ -99,11 +102,20 @@ const JobApplyPage: React.FC = () => {
     try {
       setLoadingSubmit(true);
       const token = localStorage.getItem("token");
+      // decide proposed rate
+      const clientBudgetValue = job.budget
+        ? Number(job.budget)
+        : job.minBudget
+        ? Number(job.minBudget)
+        : 0;
+
+      const proposedRateToSend = useClientBudget ? clientBudgetValue : bid;
+
       const res = await axiosInstance.post(
         `/job-applications`,
         { 
           jobPostId: job.id,
-          proposedRate: bid,
+          proposedRate: proposedRateToSend,
           coverLetter,
           proposedTimeline: timeline || "To be discussed"
         },
@@ -112,8 +124,6 @@ const JobApplyPage: React.FC = () => {
 
       if (res.data.message) {
         setUserConnects((prev) => prev - (job.connectRequired || 0));
-        
-        toast.success("Proposal submitted successfully!");
         navigate("/jobs");
       } else {
         toast.error(res.data.error || "Failed to submit proposal");
@@ -176,30 +186,53 @@ const JobApplyPage: React.FC = () => {
               <Label htmlFor="bid" className="text-sm font-medium">
                 Your Bid ($)
               </Label>
+              <div className="flex items-center gap-2 mb-1">
+                <input
+                  id="useClientBudget"
+                  type="checkbox"
+                  checked={useClientBudget}
+                  onChange={(e) => setUseClientBudget(e.target.checked)}
+                />
+                <label htmlFor="useClientBudget" className="text-sm text-muted-foreground">
+                  Use client's budget instead of custom bid
+                </label>
+              </div>
               <Input
                 id="bid"
                 type="number"
                 placeholder="Enter your proposed amount"
                 value={bid}
-                onChange={(e) =>
-                  setBid(e.target.value ? Number(e.target.value) : "")
-                }
+                onChange={(e) => setBid(e.target.value ? Number(e.target.value) : "")}
+                disabled={useClientBudget}
                 className="focus:ring-2 focus:ring-primary/50 transition-all"
               />
+              {useClientBudget && (
+                <p className="text-xs text-muted-foreground">
+                  Applying with client's budget: ${job.budget || job.minBudget || 0}
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="coverLetter" className="text-sm font-medium">
                 Cover Letter
               </Label>
-              <Textarea
-                id="coverLetter"
-                rows={6}
-                placeholder="Introduce yourself..."
-                value={coverLetter}
-                onChange={(e) => setCoverLetter(e.target.value)}
-                className="focus:ring-2 focus:ring-primary/50 transition-all resize-none"
-              />
+              <div className="prose max-w-none">
+                <CKEditor
+                  editor={ClassicEditor as any}
+                  data={coverLetter}
+                  onChange={(_: any, editor: any) => {
+                    const data = editor.getData();
+                    setCoverLetter(data);
+                  }}
+                  onReady={(editor: any) => {
+                    // Increase editor height
+                    editor.editing.view.change((writer: any) => {
+                      writer.setStyle('min-height', '280px', editor.editing.view.document.getRoot());
+                    });
+                  }}
+                />
+              </div>
             </div>
 
             <div className="flex justify-end pt-4 border-t border-border/40">

@@ -10,6 +10,16 @@ const axiosInstance = axios.create({
   },
 });
 
+// Inject Authorization header if token exists
+axiosInstance.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token');
+  if (token && !config.headers?.Authorization) {
+    config.headers = config.headers || {};
+    (config.headers as any).Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 // Add response interceptor to handle errors globally
 axiosInstance.interceptors.response.use(
   (response) => {
@@ -26,6 +36,18 @@ axiosInstance.interceptors.response.use(
     // Log HTTP errors but don't show toast (components will handle it)
     const status = error.response?.status;
     console.error('API Error:', status, error.response.data);
+
+    // If unauthorized, clear local auth and redirect to login
+    if (status === 401) {
+      try {
+        localStorage.removeItem('user');
+        localStorage.removeItem('token');
+        localStorage.removeItem('sessionData');
+      } catch {}
+      if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
+    }
 
     return Promise.reject(error);
   }

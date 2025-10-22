@@ -20,6 +20,7 @@ import { useState, useEffect, type ChangeEvent, type FormEvent } from "react";
 import { useAuth } from "@/context/AuthContext";
 import axios from "axios";
 import OAuthButtons from "@/components/auth/OAuthButtons";
+import OTPVerification from "@/components/OTPVerification";
 
 export function LoginForm({ className, ...props }: React.ComponentProps<"div">) {
   const navigate = useNavigate();
@@ -30,6 +31,8 @@ export function LoginForm({ className, ...props }: React.ComponentProps<"div">) 
   const [oauthLoading, setOauthLoading] = useState(false);
   const [error, setError] = useState("");
   const [oauthConfig, setOauthConfig] = useState({ googleEnabled: false, appleEnabled: false });
+  const [showOTPVerification, setShowOTPVerification] = useState(false);
+  const [pendingUser, setPendingUser] = useState<any>(null);
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
@@ -43,19 +46,30 @@ export function LoginForm({ className, ...props }: React.ComponentProps<"div">) 
     setLoading(true);
 
     try {
-      // await login(formData.email, formData.password);
-      // navigate("/dashboard");
       const res = await axios.post("http://localhost:3000/api/auth/login", formData);
-  const { user, token } = res.data;
+      const { user, token, sessionId, expiresAt } = res.data;
 
-  login(user, token);
+      // Create session data object
+      const sessionData = {
+        sessionId,
+        expiresAt
+      };
 
-  // Redirect based on role
-  if (user.userType === "freelancer") navigate("/freelancerhomepage");
-  else if (user.userType === "client") navigate("/clienthomepage");
-  else navigate("/");
+      // Check if email verification is required
+      if (res.data.requiresVerification) {
+        setPendingUser({ user, token, sessionData });
+        setShowOTPVerification(true);
+        return;
+      }
+
+      login(user, token, sessionData);
+
+      // Redirect based on role
+      if (user.userType === "freelancer") navigate("/freelancerhomepage");
+      else if (user.userType === "client") navigate("/clienthomepage");
+      else navigate("/");
     } catch (err: any) {
-      setError(err.response?.data?.message || "Invalid credentials");
+      setError(err.response?.data?.error || err.response?.data?.message || "Invalid credentials");
     } finally {
       setLoading(false);
     }
@@ -90,6 +104,33 @@ export function LoginForm({ className, ...props }: React.ComponentProps<"div">) 
 
     fetchOAuthConfig();
   }, []);
+
+  const handleOTPVerificationSuccess = (verifiedUser: any) => {
+    if (pendingUser) {
+      login(pendingUser.user, pendingUser.token, pendingUser.sessionData);
+      
+      // Redirect based on role
+      if (verifiedUser.userType === "freelancer") navigate("/freelancerhomepage");
+      else if (verifiedUser.userType === "client") navigate("/clienthomepage");
+      else navigate("/");
+    }
+  };
+
+  const handleOTPBack = () => {
+    setShowOTPVerification(false);
+    setPendingUser(null);
+  };
+
+  if (showOTPVerification && pendingUser) {
+    return (
+      <OTPVerification
+        email={pendingUser.user.email}
+        onVerificationSuccess={handleOTPVerificationSuccess}
+        onBack={handleOTPBack}
+        type="email"
+      />
+    );
+  }
 
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
@@ -138,7 +179,7 @@ export function LoginForm({ className, ...props }: React.ComponentProps<"div">) 
               <Field>
                 <div className="flex items-center">
                   <FieldLabel htmlFor="password">Password</FieldLabel>
-                  <a href="#" className="ml-auto text-sm underline-offset-4 hover:underline">
+                  <a href="/forgot-password" className="ml-auto text-sm underline-offset-4 hover:underline">
                     Forgot your password?
                   </a>
                 </div>

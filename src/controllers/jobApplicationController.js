@@ -38,14 +38,23 @@ const applyForJob = asyncHandler(async (req, res) => {
     return res.status(400).json({ error: 'Application deadline has passed' });
   }
 
-  // Check if user has already applied
+  // Check if user has already applied (exclude withdrawn applications)
   const existingApplication = await db.JobApplication.findOne({
-    where: { userId, jobPostId }
+    where: { 
+      userId, 
+      jobPostId,
+      status: { [db.Sequelize.Op.ne]: 'withdrawn' }
+    }
   });
 
   if (existingApplication) {
     return res.status(400).json({ error: 'You have already applied for this job' });
   }
+
+  // Detect if there's a withdrawn application we can reuse to allow re-apply
+  const withdrawnApplication = await db.JobApplication.findOne({
+    where: { userId, jobPostId, status: 'withdrawn' }
+  });
 
   // Check if user has enough connects
   if (jobPost.connectRequired > 0) {
@@ -63,27 +72,51 @@ const applyForJob = asyncHandler(async (req, res) => {
   const transaction = await db.sequelize.transaction();
   
   try {
-    // Create job application
-    const jobApplication = await db.JobApplication.create({
-      userId,
-      jobPostId,
-      coverLetter,
-      proposedRate,
-      proposedTimeline,
-      additionalInfo,
-      attachments,
-      status: 'pending'
-    }, { transaction });
+    let jobApplication;
+    if (withdrawnApplication) {
+      // Reuse withdrawn application and set back to pending with updated details
+      if (jobPost.connectRequired > 0) {
+        const user = await db.User.findByPk(userId, { transaction });
+        if (user.connectBalance < jobPost.connectRequired) {
+          return res.status(400).json({ 
+            error: 'Insufficient connects', 
+            required: jobPost.connectRequired,
+            available: user.connectBalance 
+          });
+        }
+        await user.update({ connectBalance: user.connectBalance - jobPost.connectRequired }, { transaction });
+      }
 
-    // Deduct connects if required
-    if (jobPost.connectRequired > 0) {
-      const user = await db.User.findByPk(userId, { transaction });
-      await user.update({
-        connectBalance: user.connectBalance - jobPost.connectRequired
+      await withdrawnApplication.update({
+        coverLetter,
+        proposedRate,
+        proposedTimeline,
+        additionalInfo,
+        attachments,
+        status: 'pending',
+        appliedAt: new Date(),
+        reviewedAt: null,
+        respondedAt: null,
       }, { transaction });
+      jobApplication = withdrawnApplication;
+    } else {
+      // Create new job application
+      jobApplication = await db.JobApplication.create({
+        userId,
+        jobPostId,
+        coverLetter,
+        proposedRate,
+        proposedTimeline,
+        additionalInfo,
+        attachments,
+        status: 'pending'
+      }, { transaction });
+    }
 
-      // No need to create a separate "used" record - just track the balance change
-      // The connects are already tracked in the user's connectBalance
+    // Deduct connects if required (only when creating new application; for reused withdrawn handled above)
+    if (!withdrawnApplication && jobPost.connectRequired > 0) {
+      const user = await db.User.findByPk(userId, { transaction });
+      await user.update({ connectBalance: user.connectBalance - jobPost.connectRequired }, { transaction });
     }
 
     // Get application with relations
@@ -120,6 +153,20 @@ const jobTitle = applicationWithDetails.jobPost.title;
     // Commit transaction
     await transaction.commit();
 
+    // Notify applicant (confirmation)
+    try {
+      await novu.trigger('freelancer-app-notification', {
+        to: { subscriberId: String(userId) },
+        payload: {
+          type: 'application_submitted',
+          title: 'Application submitted',
+          message: `You applied to "${jobPost.title}"`,
+          jobPostId: jobPost.id,
+          applicationId: jobApplication.id,
+        },
+      });
+    } catch {}
+
     res.status(201).json({
       message: 'Job application submitted successfully',
       application: applicationWithDetails
@@ -147,7 +194,13 @@ const getMyApplications = asyncHandler(async (req, res) => {
   const applications = await db.JobApplication.findAndCountAll({
     where: whereClause,
     include: [
-      { model: db.JobPost, as: 'jobPost' },
+      { 
+        model: db.JobPost, 
+        as: 'jobPost',
+        include: [
+          { model: db.User, as: 'client', attributes: ['id','firstName','lastName','email'] }
+        ]
+      },
       { model: db.User, as: 'applicant' }
     ],
     limit: parseInt(limit),
@@ -194,7 +247,13 @@ const getJobApplications = asyncHandler(async (req, res) => {
     where: whereClause,
     include: [
       { model: db.User, as: 'applicant' },
-      { model: db.JobPost, as: 'jobPost' }
+      { 
+        model: db.JobPost, 
+        as: 'jobPost',
+        include: [
+          { model: db.User, as: 'client', attributes: ['id','firstName','lastName','email'] }
+        ]
+      }
     ],
     limit: parseInt(limit),
     offset: offset,
@@ -242,6 +301,20 @@ const updateApplicationStatus = asyncHandler(async (req, res) => {
     respondedAt: new Date()
   });
 
+  // Notify applicant about status change
+  try {
+    await novu.trigger('freelancer-app-notification', {
+      to: { subscriberId: String(application.userId) },
+      payload: {
+        type: 'application_status_update',
+        title: 'Application status updated',
+        message: `Your application for "${application.jobPost.title}" is now ${status}.`,
+        applicationId: application.id,
+        jobPostId: application.jobPostId,
+      },
+    });
+  } catch {}
+
   res.json({
     message: 'Application status updated successfully',
     application
@@ -265,15 +338,42 @@ const withdrawApplication = asyncHandler(async (req, res) => {
     return res.status(403).json({ error: 'Not authorized to withdraw this application' });
   }
 
-  if (application.status !== 'pending') {
-    return res.status(400).json({ error: 'Cannot withdraw application in current status' });
+  // If a contract has already been created/accepted for this application, block withdraw
+  const blockingContract = await db.Contract.findOne({
+    where: {
+      jobApplicationId: application.id,
+      contractStatus: { [db.Sequelize.Op.in]: ['pending', 'active'] }
+    }
+  });
+
+  if (blockingContract) {
+    return res.status(400).json({ error: 'Cannot withdraw application after contract has been created' });
   }
 
-  // Update application status
+  // Allow withdraw from any status except already withdrawn
+  if (application.status === 'withdrawn') {
+    return res.status(400).json({ error: 'Application already withdrawn' });
+  }
+
   await application.update({
     status: 'withdrawn',
     respondedAt: new Date()
   });
+
+  // Notify both applicant and client about withdrawal
+  try {
+    // Notify applicant (confirmation)
+    await novu.trigger('freelancer-app-notification', {
+      to: { subscriberId: String(application.userId) },
+      payload: {
+        type: 'application_withdrawn',
+        title: 'Application withdrawn',
+        message: 'You withdrew your application.',
+        applicationId: application.id,
+        jobPostId: application.jobPostId,
+      },
+    });
+  } catch {}
 
   res.json({
     message: 'Application withdrawn successfully',
@@ -291,7 +391,13 @@ const getApplicationDetails = asyncHandler(async (req, res) => {
   const application = await db.JobApplication.findByPk(applicationId, {
     include: [
       { model: db.User, as: 'applicant' },
-      { model: db.JobPost, as: 'jobPost' }
+      { 
+        model: db.JobPost, 
+        as: 'jobPost',
+        include: [
+          { model: db.User, as: 'client', attributes: ['id','firstName','lastName','email'] }
+        ]
+      }
     ]
   });
 

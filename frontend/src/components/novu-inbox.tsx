@@ -1,21 +1,28 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Inbox } from '@novu/react';
 import { useNavigate } from 'react-router';
+import { useAuth } from '@/context/AuthContext';
 
 export function NovuInbox() {
   const navigate = useNavigate();
-  const [subscriberId, setSubscriberId] = useState(null);
-  
+  const { user } = useAuth();
+  const [subscriberId, setSubscriberId] = useState<string | null>(null);
+  const appId = import.meta.env.VITE_NOVU_APP_ID || "";
+  const backendUrl = import.meta.env.VITE_NOVU_BACKEND_URL || "https://api.novu.co";
+  const socketUrl = import.meta.env.VITE_NOVU_SOCKET_URL || "https://ws.novu.co";
+
   useEffect(() => {
     try {
-      const user = JSON.parse(localStorage.getItem('user') || '{}');
-      if (user && user.id) {
-        setSubscriberId(user.id.toString());
+      if (user && (user as any).id) {
+        setSubscriberId(String((user as any).id));
+      } else {
+        const u = JSON.parse(localStorage.getItem('user') || '{}');
+        if (u && u.id) setSubscriberId(u.id.toString());
       }
     } catch (error) {
       console.error('Error parsing user data:', error);
     }
-  }, []);
+  }, [user]);
 
   // Don't render until we have subscriber ID
   if (!subscriberId) {
@@ -26,25 +33,31 @@ export function NovuInbox() {
     );
   }
 
+  if (!appId) {
+    return null; // cannot render inbox without app id
+  }
+
   return (
     <Inbox
-      applicationIdentifier="NAiOuTU5VtKH"
-      subscriberId={subscriberId}
+      applicationIdentifier={appId}
+      subscriberId={subscriberId as string}
       routerPush={(path) => navigate(path)}
-      // Enable real-time updates
-      backendUrl="https://api.novu.co"
-      socketUrl="https://ws.novu.co"
-     
-      // Notification interaction handlers
+      backendUrl={backendUrl}
+      socketUrl={socketUrl}
+      appearance={{
+        variables: {
+          colorPrimary: 'hsl(var(--primary))',
+          colorPrimaryForeground: 'hsl(var(--primary-foreground))',
+          colorBackground: 'hsl(var(--background))',
+          colorForeground: 'hsl(var(--foreground))',
+          colorNeutral: 'hsl(var(--muted))',
+        },
+      }}
       onNotificationClick={(notification) => {
-        console.log('Notification clicked:', notification);
-        
-        // Handle navigation based on notification payload
         if (notification.data?.jobPostId) {
           navigate(`/jobs/${notification.data.jobPostId}`);
         }
       }}
-      
     />
   );
 }

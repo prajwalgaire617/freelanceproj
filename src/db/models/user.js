@@ -90,6 +90,11 @@ module.exports = (sequelize, DataTypes) => {
         isEmail: true
       }
     },
+    username: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      unique: true,
+    },
     password: {
       type: DataTypes.STRING,
       allowNull: true // Can be null for OAuth users
@@ -192,6 +197,53 @@ module.exports = (sequelize, DataTypes) => {
     connectBalance: {
       type: DataTypes.INTEGER,
       defaultValue: 0
+    },
+    // Enhanced profile fields
+    country: {
+      type: DataTypes.STRING,
+      allowNull: true
+    },
+    bio: {
+      type: DataTypes.TEXT,
+      allowNull: true
+    },
+    experiences: {
+      type: DataTypes.JSON,
+      allowNull: true,
+      defaultValue: []
+    },
+    paymentOptions: {
+      type: DataTypes.JSON,
+      allowNull: true,
+      defaultValue: []
+    },
+    companyName: {
+      type: DataTypes.STRING,
+      allowNull: true
+    },
+    companyWebsite: {
+      type: DataTypes.STRING,
+      allowNull: true
+    }
+    ,
+    // Extended profile fields
+    hourlyRate: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true
+    },
+    availability: {
+      type: DataTypes.STRING,
+      allowNull: true
+    },
+    skills: {
+      type: DataTypes.JSON,
+      allowNull: true,
+      defaultValue: []
+    },
+    portfolioItems: {
+      type: DataTypes.JSON,
+      allowNull: true,
+      defaultValue: []
     }
   }, {
     sequelize,

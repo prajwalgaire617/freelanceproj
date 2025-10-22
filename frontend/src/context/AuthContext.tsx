@@ -4,14 +4,25 @@ interface User {
   id: string;
   email: string;
   userType: "freelancer" | "client" | "admin";
+  firstName?: string;
+  lastName?: string;
+  isEmailVerified?: boolean;
+  profileImage?: string;
+}
+
+interface SessionData {
+  sessionId: string;
+  expiresAt: string;
 }
 
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   initializing: boolean;
-  login: (userData: User, token: string) => void;
-  logout: () => void;
+  sessionData: SessionData | null;
+  login: (userData: User, token: string, sessionData: SessionData) => void;
+  logout: () => Promise<void>;
+  logoutAll: () => Promise<void>;
   hasRole: (role: string) => boolean;
 }
 
@@ -19,13 +30,20 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [sessionData, setSessionData] = useState<SessionData | null>(null);
   const [initializing, setInitializing] = useState(true);
 
   useEffect(() => {
     try {
       const storedUser = localStorage.getItem("user");
-      if (storedUser) {
+      const storedSessionData = localStorage.getItem("sessionData");
+      const token = localStorage.getItem("token");
+      
+      if (storedUser && token) {
         setUser(JSON.parse(storedUser));
+        if (storedSessionData) {
+          setSessionData(JSON.parse(storedSessionData));
+        }
       }
     } catch (err) {
       console.error("Error restoring user:", err);
@@ -34,23 +52,76 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
-  const login = (userData: User, token: string) => {
+  const login = (userData: User, token: string, sessionData: SessionData) => {
     setUser(userData);
+    setSessionData(sessionData);
     localStorage.setItem("user", JSON.stringify(userData));
     localStorage.setItem("token", token);
+    localStorage.setItem("sessionData", JSON.stringify(sessionData));
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem("user");
-    localStorage.removeItem("token");
+  const logout = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      if (token) {
+        // Call logout API to invalidate session
+        await fetch("/api/auth/logout", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        });
+      }
+    } catch (error) {
+      console.error("Error during logout:", error);
+    } finally {
+      setUser(null);
+      setSessionData(null);
+      localStorage.removeItem("user");
+      localStorage.removeItem("token");
+      localStorage.removeItem("sessionData");
+    }
+  };
+
+  const logoutAll = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      if (token) {
+        // Call logout-all API to invalidate all sessions
+        await fetch("/api/auth/logout-all", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        });
+      }
+    } catch (error) {
+      console.error("Error during logout all:", error);
+    } finally {
+      setUser(null);
+      setSessionData(null);
+      localStorage.removeItem("user");
+      localStorage.removeItem("token");
+      localStorage.removeItem("sessionData");
+    }
   };
 
   const hasRole = (role: string) => user?.userType === role;
 
   return (
     <AuthContext.Provider
-      value={{ user, isAuthenticated: !!user, initializing, login, logout, hasRole }}
+      value={{ 
+        user, 
+        isAuthenticated: !!user, 
+        initializing, 
+        sessionData,
+        login, 
+        logout, 
+        logoutAll, 
+        hasRole 
+      }}
     >
       {/* Render only after restoring user */}
       {!initializing && children}

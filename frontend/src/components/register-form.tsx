@@ -19,6 +19,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
+import { useAuth } from "@/context/AuthContext";
 import axios from "axios";
 
 const URL = import.meta.env.VITE_API_URL || "http://localhost:3000/api/auth/register";
@@ -41,6 +42,7 @@ interface BackendError {
 
 export const RegisterForm: React.FC<RegisterFormProps> = ({ className, ...props }) => {
   const navigate = useNavigate();
+  const { login } = useAuth();
 
   const [formData, setFormData] = useState<FormData>({
     fullName: "",
@@ -96,8 +98,25 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ className, ...props 
         userType: formData.userType,
       });
 
+      const { user, token, sessionId, expiresAt } = response.data;
+
+      // Create session data object
+      const sessionData = {
+        sessionId,
+        expiresAt
+      };
+
+      // Auto-login after registration
+      login(user, token, sessionData);
+
       setSuccess(response.data.message || "Account created successfully!");
-      setTimeout(() => navigate("/login"), 1500);
+      
+      // Redirect based on role
+      setTimeout(() => {
+        if (user.userType === "freelancer") navigate("/freelancerhomepage");
+        else if (user.userType === "client") navigate("/clienthomepage");
+        else navigate("/");
+      }, 1500);
     } catch (err: any) {
       const data: BackendError = err.response?.data;
 

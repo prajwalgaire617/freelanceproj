@@ -4,14 +4,20 @@ import Homepage from "./pages/Freelancer/Homepage";
 import JobsPage from "./pages/Freelancer/JobsPage";
 import LoginPage from "./pages/login";
 import SignUpPage from "./pages/signup";
+import ForgotPassword from "./pages/ForgotPassword";
 import JobApplyPage from "./pages/Freelancer/JobApplyPage";
 import ProtectedRoute from "./components/ProtectedRoute";
 import ClientHomepage from "./pages/Client/ClientHomepage";
+import FreelancerProfilePage from "./pages/Client/FreelancerProfilePage";
+import ClientProfilePage from "./pages/Client/ClientProfilePage";
+import ClientApplicationsList from "./pages/Client/ClientApplicationsList";
 import FreeLancerProfile from "./pages/Freelancer/FreeLancerProfile";
 import MessagePage from "./pages/Freelancer/Message";
 import ClientMessagePage from "./pages/Client/ClientMessagePage";
 import FreelancerSearch from "./pages/Client/Freelancerspage";
 import JobApplicationsPage from "./pages/Client/JobApplicationsPage";
+import ApplicationsPage from "./pages/Freelancer/ApplicationsPage";
+import NotFound from "./pages/NotFound";
 import CreateContractPage from "./pages/Client/CreateContractPage";
 import ContractsPage from "./pages/Freelancer/ContractsPage";
 import OAuthCallback from "./pages/auth/OAuthCallback";
@@ -58,10 +64,11 @@ function App() {
           <Route path="/reviews" element={<Reviews />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignUpPage />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/auth/callback" element={<OAuthCallback />} />
           <Route path="/messages" element={<MessagePage />} />
           <Route path="/clientmessages" element={<ClientMessagePage />} />
-          <Route path="/freelancers" element={<FreelancerSearch />} />
+          <Route path="/freelancers" element={<FreelancerSearch onHireFreelancer={() => {}} />} />
           <Route path="/jobs" element={<JobsPage />} /> {/* Public jobs page */}
 
           {/* Freelancer-only routes */}
@@ -73,6 +80,7 @@ function App() {
           />
 
           <Route path="/freelancerprofile" element={<ProtectedRoute element={<FreeLancerProfile />} allowedRoles={["freelancer"]} />} />
+          <Route path="/applications" element={<ProtectedRoute element={<ApplicationsPage />} allowedRoles={["freelancer"]} />} />
           <Route
             path="/contracts"
             element={<ProtectedRoute element={<ContractsPage />} allowedRoles={["freelancer"]} />}
@@ -82,6 +90,18 @@ function App() {
           <Route
             path="/clienthomepage"
             element={<ProtectedRoute element={<ClientHomepage />} allowedRoles={["client"]} />}
+          />
+          <Route
+            path="/applications"
+            element={<ProtectedRoute element={<ClientApplicationsList />} allowedRoles={["client"]} />}
+          />
+          <Route
+            path="/clientprofile"
+            element={<ProtectedRoute element={<ClientProfilePage />} allowedRoles={["client"]} />}
+          />
+          <Route
+            path="/client/freelancers/:id"
+            element={<FreelancerProfilePage />}
           />
           <Route
             path="/job-applications/:jobId"
@@ -97,7 +117,7 @@ function App() {
       />
 
           <Route path="/" element={<Navigate to="/login" replace />} />
-          <Route path="*" element={<p>Not found</p>} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
         <Toaster position="top-right" richColors />
       </NotificationProvider>

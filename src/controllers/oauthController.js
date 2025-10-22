@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const { sendSuccess, sendError } = require('../utils/response');
 const asyncHandler = require('express-async-handler');
+const sessionService = require('../services/sessionService');
 
 // @desc    Google OAuth callback
 // @route   GET /api/auth/google/callback
@@ -13,19 +14,18 @@ const googleCallback = asyncHandler(async (req, res) => {
       return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}/login?error=oauth_failed`);
     }
 
-    // Generate JWT token
-    const token = jwt.sign(
-      { 
-        id: user.id, 
-        email: user.email, 
-        userType: user.userType 
-      },
-      process.env.JWT_SECRET || 'worklab_jwt_secret_2024_secure_key',
-      { expiresIn: '24h' }
+    // Create session for OAuth user
+    const userAgent = req.get('User-Agent') || '';
+    const ipAddress = req.ip || req.connection.remoteAddress || '';
+    
+    const sessionData = await sessionService.createSession(
+      user.id, 
+      userAgent, 
+      ipAddress
     );
 
-    // Redirect to frontend with token
-    const redirectUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/auth/callback?token=${token}&provider=google`;
+    // Redirect to frontend with session data
+    const redirectUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/auth/callback?token=${sessionData.token}&sessionId=${sessionData.sessionId}&expiresAt=${sessionData.expiresAt}&provider=google`;
     res.redirect(redirectUrl);
   } catch (error) {
     console.error('Google OAuth Callback Error:', error);
@@ -44,19 +44,18 @@ const appleCallback = asyncHandler(async (req, res) => {
       return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}/login?error=oauth_failed`);
     }
 
-    // Generate JWT token
-    const token = jwt.sign(
-      { 
-        id: user.id, 
-        email: user.email, 
-        userType: user.userType 
-      },
-      process.env.JWT_SECRET || 'worklab_jwt_secret_2024_secure_key',
-      { expiresIn: '24h' }
+    // Create session for OAuth user
+    const userAgent = req.get('User-Agent') || '';
+    const ipAddress = req.ip || req.connection.remoteAddress || '';
+    
+    const sessionData = await sessionService.createSession(
+      user.id, 
+      userAgent, 
+      ipAddress
     );
 
-    // Redirect to frontend with token
-    const redirectUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/auth/callback?token=${token}&provider=apple`;
+    // Redirect to frontend with session data
+    const redirectUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/auth/callback?token=${sessionData.token}&sessionId=${sessionData.sessionId}&expiresAt=${sessionData.expiresAt}&provider=apple`;
     res.redirect(redirectUrl);
   } catch (error) {
     console.error('Apple OAuth Callback Error:', error);

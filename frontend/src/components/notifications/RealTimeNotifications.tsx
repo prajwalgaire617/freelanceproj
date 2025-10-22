@@ -8,9 +8,10 @@ export const RealTimeNotifications: React.FC = () => {
   const { user } = useAuth();
   const { addNotification } = useNotifications();
   const navigate = useNavigate();
+  const enabled = (import.meta as any).env?.VITE_CENTRIFUGO_ENABLED === 'true';
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || !enabled) return;
 
     console.log('🔔 Setting up real-time notifications for user:', user.id);
 
@@ -19,11 +20,10 @@ export const RealTimeNotifications: React.FC = () => {
       try {
         console.log('🔔 Attempting to connect to Centrifugo for user:', user.id);
         await centrifugoService.connect(user.id.toString());
-        console.log('✅ Successfully connected to Centrifugo');
         
         // Subscribe to user notifications
         console.log('🔔 Subscribing to user notifications for user:', user.id);
-        centrifugoService.subscribeToUserNotifications(
+        const sub = centrifugoService.subscribeToUserNotifications(
           user.id.toString(),
           (notificationData) => {
             console.log('🔔 Real-time notification received:', notificationData);
@@ -67,10 +67,11 @@ export const RealTimeNotifications: React.FC = () => {
             }
           }
         );
+        if (!sub) {
+          console.log('ℹ️ Centrifugo subscription deferred or disabled');
+        }
       } catch (error) {
         console.error('❌ Failed to setup real-time notifications:', error);
-        console.error('❌ Error details:', error.message);
-        console.error('❌ Stack trace:', error.stack);
       }
     };
 
@@ -83,7 +84,7 @@ export const RealTimeNotifications: React.FC = () => {
         centrifugoService.disconnect();
       }
     };
-  }, [user, addNotification, navigate]);
+  }, [user, addNotification, navigate, enabled]);
 
   return null; // This component doesn't render anything
 };

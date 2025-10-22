@@ -13,9 +13,10 @@ interface PersonalTabProps {
   profileData: ProfileData;
   setProfileData: (data: ProfileData) => void;
   onPhotoUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  photoUrl?: string;
 }
 
-export default function PersonalTab({ profileData, setProfileData, onPhotoUpload }: PersonalTabProps) {
+export default function PersonalTab({ profileData, setProfileData, onPhotoUpload, photoUrl }: PersonalTabProps) {
   return (
     <Card>
       <CardHeader>
@@ -31,7 +32,7 @@ export default function PersonalTab({ profileData, setProfileData, onPhotoUpload
           <Label htmlFor="photo">Profile Photo</Label>
           <div className="flex items-center gap-4">
             <Avatar className="h-20 w-20">
-              <AvatarImage src="/placeholder.svg" />
+              <AvatarImage src={photoUrl || "/placeholder.svg"} />
               <AvatarFallback>JD</AvatarFallback>
             </Avatar>
             <div>

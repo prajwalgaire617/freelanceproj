@@ -12,7 +12,7 @@ function MessagePage() {
     ];
     return (
         <>
-            <Header navItems={freelancerNav} />
+            <Header navItems={freelancerNav} showLogout />
             <MessagingInterface />
         </>
     );

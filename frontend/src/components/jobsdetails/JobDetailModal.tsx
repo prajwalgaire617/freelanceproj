@@ -13,9 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { type JobPost } from "@/type/job/jobpost";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
-import { useNotifications } from "@/context/NotificationContext";
 import axiosInstance from "@/api/axios";
-import { toast } from "sonner";
 
 interface JobDetailModalProps {
   job: JobPost | null;
@@ -26,7 +24,6 @@ interface JobDetailModalProps {
 const JobDetailModal: React.FC<JobDetailModalProps> = ({ job, open, onClose }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { addNotification } = useNotifications();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -76,7 +73,6 @@ const JobDetailModal: React.FC<JobDetailModalProps> = ({ job, open, onClose }) =
   // ✅ Handle job apply - Navigate to detailed application page
   const handleApply = () => {
     if (!user) {
-      toast.error("Please log in to apply for jobs");
       navigate("/login");
       return;
     }
@@ -88,7 +84,6 @@ const JobDetailModal: React.FC<JobDetailModalProps> = ({ job, open, onClose }) =
   // ✅ Quick apply (one-click application)
   const handleQuickApply = async () => {
     if (!user) {
-      toast.error("Please log in to apply for jobs");
       navigate("/login");
       return;
     }
@@ -118,29 +113,9 @@ const JobDetailModal: React.FC<JobDetailModalProps> = ({ job, open, onClose }) =
       if (response.data.message) {
         setSuccess(true);
         setHasApplied(true);
-        toast.success("Application submitted successfully!");
-        
-        // Add notification
-        addNotification({
-          type: 'success',
-          title: 'Job Application Submitted!',
-          message: `You've successfully applied for "${job?.title}". The client will review your application.`,
-          action: {
-            label: 'View Application',
-            onClick: () => navigate('/freelancerhomepage')
-          }
-        });
       } else {
         const errorMsg = response.data.error || "Failed to apply for job";
         setError(errorMsg);
-        toast.error(errorMsg);
-        
-        // Add error notification
-        addNotification({
-          type: 'error',
-          title: 'Application Failed',
-          message: errorMsg
-        });
       }
     } catch (err: any) {
       const errorMsg = err.response?.data?.error || err.response?.data?.message || "Something went wrong";
@@ -150,8 +125,6 @@ const JobDetailModal: React.FC<JobDetailModalProps> = ({ job, open, onClose }) =
       if (errorMsg.toLowerCase().includes('already applied')) {
         setHasApplied(true);
       }
-      
-      toast.error(errorMsg);
     } finally {
       setLoading(false);
     }

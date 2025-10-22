@@ -7,6 +7,11 @@ class CentrifugoService {
   private isConnecting: boolean = false;
   private connectionPromise: Promise<void> | null = null;
 
+  private isEnabled(): boolean {
+    const ENV: any = (import.meta as any).env || {};
+    return ENV.VITE_CENTRIFUGO_ENABLED === 'true';
+  }
+
   async connect(userId: string) {
     // If already connected, return
     if (this.isConnected()) {
@@ -34,6 +39,10 @@ class CentrifugoService {
 
   private async _connect(userId: string) {
     try {
+      if (!this.isEnabled()) {
+        console.log('⚠️ Centrifugo disabled via VITE_CENTRIFUGO_ENABLED');
+        return;
+      }
       // Disconnect existing connection if any
       if (this.centrifuge) {
         this.centrifuge.disconnect();
@@ -51,11 +60,20 @@ class CentrifugoService {
       const { token, centrifugoUrl } = response.data.data;
       
       console.log('🔑 Token received:', token ? 'Yes' : 'No');
-      console.log('🌐 Centrifugo URL:', centrifugoUrl);
+      console.log('🌐 Centrifugo URL from backend:', centrifugoUrl);
+
+      // Resolve Centrifugo URL in order: Vite env -> backend; no localhost default to avoid noisy errors
+      const envUrl = (import.meta as any).env?.VITE_CENTRIFUGO_URL as string | undefined;
+      const resolvedUrl = envUrl || centrifugoUrl;
+      if (!resolvedUrl) {
+        console.log('⚠️ Centrifugo URL not provided; skipping connection');
+        return;
+      }
+      console.log('🔧 Using Centrifugo URL:', resolvedUrl);
 
       // Create Centrifuge client
-      this.centrifuge = new Centrifuge(centrifugoUrl || 'ws://localhost:8000/connection/websocket', {
-        token
+      this.centrifuge = new Centrifuge(resolvedUrl, {
+        token,
       });
 
       // Setup connection handlers
@@ -72,7 +90,7 @@ class CentrifugoService {
       });
 
       this.centrifuge.on('error', (ctx) => {
-        console.error('❌ Centrifugo error', ctx);
+        console.warn('❌ Centrifugo error (suppressed)', ctx?.type || ctx);
       });
 
       // Connect
@@ -80,7 +98,7 @@ class CentrifugoService {
 
       console.log('🚀 Centrifugo service initialized for user:', userId);
     } catch (error) {
-      console.error('Failed to connect to Centrifugo:', error);
+      console.warn('Failed to connect to Centrifugo (non-fatal):', error);
       throw error;
     }
   }
@@ -89,8 +107,10 @@ class CentrifugoService {
     userId: string,
     onNotification: (notification: any) => void
   ) {
+    if (!this.isEnabled()) return null;
     if (!this.centrifuge) {
-      console.error('Centrifugo not connected');
+      // try to connect once lazily; fire and forget
+      this.connect(userId).catch(() => {});
       return null;
     }
 
@@ -131,8 +151,10 @@ class CentrifugoService {
     otherUserId: string,
     onMessage: (message: any) => void
   ) {
+    if (!this.isEnabled()) return null;
     if (!this.centrifuge) {
-      console.error('Centrifugo not connected');
+      // try to connect once lazily; fire and forget
+      this.connect(currentUserId).catch(() => {});
       return null;
     }
 
