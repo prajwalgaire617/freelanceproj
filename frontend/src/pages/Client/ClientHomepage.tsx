@@ -98,7 +98,7 @@ export default function ClientDashboard() {
     { label: "Freelancer Search", href: "/freelancers" },
     { label: "Applications", href: "/applications" },
     { label: "Messages", href: "/clientmessages" },
-    { label: "Contracts", href: "/contracts" },
+    { label: "Contracts", href: "/client-contracts" },
   ];
 
   return (

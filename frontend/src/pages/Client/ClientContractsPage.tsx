@@ -3,19 +3,17 @@ import { useNavigate } from "react-router-dom";
 import axiosInstance from "@/api/axios";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Card, CardContent } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import Header from "@/components/layout/Header";
-import { useNotifications } from "@/context/NotificationContext";
 import { toast } from "sonner";
 import { 
   Loader2, 
   FileText, 
   DollarSign, 
   Calendar,
-  CheckCircle,
-  XCircle,
-  Eye
+  Eye,
+  Plus
 } from "lucide-react";
 
 interface Contract {
@@ -39,30 +37,32 @@ interface Contract {
     email: string;
   };
   freelancer: {
+    id: number;
     firstName: string;
     lastName: string;
     freelancerUser: {
+      id: number;
       firstName: string;
       lastName: string;
+      profileImage: string | null;
+      email: string;
     };
   };
   jobApplication: any;
 }
 
-const ContractsPage: React.FC = () => {
+const ClientContractsPage: React.FC = () => {
   const navigate = useNavigate();
-  const { addNotification } = useNotifications();
   
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
-  const [actionLoading, setActionLoading] = useState(false);
 
-  const freelancerNav = [
-    { label: "Find Work", href: "/jobs" },
-    { label: "My Applications", href: "/applications" },
-    { label: "Contracts", href: "/contracts" },
-    { label: "Messages", href: "/messages" },
+  const clientNav = [
+    { label: "Dashboard", href: "/clienthomepage" },
+    { label: "My Jobs", href: "/my-jobs" },
+    { label: "Contracts", href: "/client-contracts" },
+    { label: "Messages", href: "/clientmessages" },
   ];
 
   useEffect(() => {
@@ -74,26 +74,12 @@ const ContractsPage: React.FC = () => {
       setLoading(true);
       const token = localStorage.getItem("token");
 
-      const response = await axiosInstance.get("/contracts", {
+      const response = await axiosInstance.get("/client/contracts", {
         headers: { Authorization: `Bearer ${token}` }
       });
 
       const contracts = response.data.contracts || [];
       setContracts(contracts);
-      
-      // Add notification if there are new contracts
-      const pendingContracts = contracts.filter((c: Contract) => c.contractStatus === 'draft' || c.status === 'pending');
-      if (pendingContracts.length > 0) {
-        addNotification({
-          type: 'info',
-          title: 'New Contract Received!',
-          message: `You have ${pendingContracts.length} new contract${pendingContracts.length > 1 ? 's' : ''} waiting for your review.`,
-          action: {
-            label: 'View Contracts',
-            onClick: () => window.location.reload()
-          }
-        });
-      }
     } catch (err: any) {
       console.error("Error fetching contracts:", err);
       toast.error("Failed to load contracts");
@@ -102,77 +88,12 @@ const ContractsPage: React.FC = () => {
     }
   };
 
-  const handleAcceptContract = async (contractId: number) => {
-    try {
-      setActionLoading(true);
-      const token = localStorage.getItem("token");
-
-      await axiosInstance.put(
-        `/contracts/${contractId}/accept`,
-        {},
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
-      );
-
-      toast.success("Contract accepted successfully!");
-      
-      // Add notification
-      addNotification({
-        type: 'success',
-        title: 'Contract Accepted!',
-        message: `You've accepted the contract "${selectedContract?.workTitle}". The deal is now active and you can start working!`,
-        action: {
-          label: 'View Contract',
-          onClick: () => setSelectedContract(selectedContract)
-        }
-      });
-      
-      setSelectedContract(null);
-      fetchContracts();
-    } catch (err: any) {
-      toast.error(err.response?.data?.error || "Failed to accept contract");
-      
-      // Add error notification
-      addNotification({
-        type: 'error',
-        title: 'Contract Acceptance Failed',
-        message: err.response?.data?.error || 'Failed to accept contract. Please try again.'
-      });
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleRejectContract = async (contractId: number) => {
-    try {
-      setActionLoading(true);
-      const token = localStorage.getItem("token");
-
-      await axiosInstance.put(
-        `/contracts/${contractId}`,
-        { status: "rejected" },
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
-      );
-
-      toast.success("Contract rejected");
-      setSelectedContract(null);
-      fetchContracts();
-    } catch (err: any) {
-      toast.error(err.response?.data?.error || "Failed to reject contract");
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
   const getStatusBadge = (contract: Contract) => {
     // Use contractStatus if available, fallback to status
     const status = contract.contractStatus || contract.status || 'pending';
     const statusConfig: Record<string, { variant: any; label: string; color: string }> = {
       pending: { variant: "secondary", label: "Pending Review", color: "text-yellow-600" },
-      draft: { variant: "secondary", label: "Draft", color: "text-gray-600" },
+      draft: { variant: "secondary", label: "Sent to Freelancer", color: "text-blue-600" },
       active: { variant: "default", label: "Active", color: "text-green-600" },
       completed: { variant: "outline", label: "Completed", color: "text-blue-600" },
       cancelled: { variant: "destructive", label: "Cancelled", color: "text-red-600" },
@@ -193,23 +114,30 @@ const ContractsPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header navItems={freelancerNav} />
+      <Header navItems={clientNav} />
 
       <main className="max-w-7xl mx-auto py-8 px-6">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold">My Contracts</h1>
-          <Badge variant="outline">{contracts.length} Total</Badge>
+          <div className="flex gap-3">
+            <Badge variant="outline">{contracts.length} Total</Badge>
+            <Button onClick={() => navigate("/freelancers")}>
+              <Plus className="w-4 h-4 mr-2" />
+              Create New Contract
+            </Button>
+          </div>
         </div>
 
         {contracts.length === 0 ? (
           <Card>
             <CardContent className="py-12 text-center">
               <FileText className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
-              <p className="text-muted-foreground">
-                No contracts yet. Apply for jobs to receive contract offers!
+              <h3 className="text-lg font-semibold mb-2">No contracts yet</h3>
+              <p className="text-muted-foreground mb-4">
+                Start by finding talented freelancers and sending them contract offers!
               </p>
-              <Button className="mt-4" onClick={() => navigate("/jobs")}>
-                Browse Jobs
+              <Button onClick={() => navigate("/freelancers")}>
+                Find Freelancers
               </Button>
             </CardContent>
           </Card>
@@ -224,7 +152,7 @@ const ContractsPage: React.FC = () => {
                         <div>
                           <h3 className="font-semibold text-lg">{contract.workTitle}</h3>
                           <p className="text-sm text-muted-foreground">
-                            From: {contract.client.firstName} {contract.client.lastName}
+                            To: {contract.freelancer?.freelancerUser?.firstName || contract.freelancer?.firstName} {contract.freelancer?.freelancerUser?.lastName || contract.freelancer?.lastName}
                           </p>
                         </div>
                         {getStatusBadge(contract)}
@@ -265,29 +193,6 @@ const ContractsPage: React.FC = () => {
                         <Eye className="w-4 h-4 mr-2" />
                         View Details
                       </Button>
-
-                      {(contract.contractStatus === "draft" || contract.status === "pending") && (
-                        <>
-                          <Button
-                            size="sm"
-                            variant="default"
-                            onClick={() => handleAcceptContract(contract.id)}
-                            disabled={actionLoading}
-                          >
-                            <CheckCircle className="w-4 h-4 mr-2" />
-                            Accept
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => handleRejectContract(contract.id)}
-                            disabled={actionLoading}
-                          >
-                            <XCircle className="w-4 h-4 mr-2" />
-                            Reject
-                          </Button>
-                        </>
-                      )}
                     </div>
                   </div>
                 </CardContent>
@@ -312,11 +217,18 @@ const ContractsPage: React.FC = () => {
                 {getStatusBadge(selectedContract)}
               </div>
 
-              {/* Client Info */}
+              {/* Freelancer Info */}
               <div>
-                <h4 className="font-semibold mb-2">Client</h4>
-                <p>{selectedContract.client.firstName} {selectedContract.client.lastName}</p>
-                <p className="text-sm text-muted-foreground">{selectedContract.client.email}</p>
+                <h4 className="font-semibold mb-2">Freelancer</h4>
+                <p>
+                  {selectedContract.freelancer?.freelancerUser?.firstName || selectedContract.freelancer?.firstName}{' '}
+                  {selectedContract.freelancer?.freelancerUser?.lastName || selectedContract.freelancer?.lastName}
+                </p>
+                {selectedContract.freelancer?.freelancerUser?.email && (
+                  <p className="text-sm text-muted-foreground">
+                    {selectedContract.freelancer.freelancerUser.email}
+                  </p>
+                )}
               </div>
 
               {/* Description */}
@@ -359,15 +271,17 @@ const ContractsPage: React.FC = () => {
               {selectedContract.deliverables && (
                 <div>
                   <h4 className="font-semibold mb-2">Deliverables</h4>
-                  {Array.isArray(selectedContract.deliverables) ? (
-                    <ul className="list-disc list-inside space-y-1">
-                      {selectedContract.deliverables.map((item, index) => (
-                        <li key={index} className="text-sm">{item}</li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-sm">{selectedContract.deliverables}</p>
-                  )}
+                  <div className="bg-muted p-4 rounded-md">
+                    {Array.isArray(selectedContract.deliverables) ? (
+                      <ul className="list-disc list-inside space-y-1">
+                        {selectedContract.deliverables.map((item, index) => (
+                          <li key={index} className="text-sm">{item}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-sm">{selectedContract.deliverables}</p>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -376,34 +290,26 @@ const ContractsPage: React.FC = () => {
                 <div>
                   <h4 className="font-semibold mb-2">Terms & Conditions</h4>
                   <div className="bg-muted p-4 rounded-md">
-                    <p className="text-sm whitespace-pre-wrap">{selectedContract.terms}</p>
+                    <p className="text-sm">{selectedContract.terms}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Milestones */}
+              {selectedContract.milestones && Array.isArray(selectedContract.milestones) && selectedContract.milestones.length > 0 && (
+                <div>
+                  <h4 className="font-semibold mb-2">Milestones</h4>
+                  <div className="bg-muted p-4 rounded-md space-y-2">
+                    {selectedContract.milestones.map((milestone, index) => (
+                      <div key={index} className="flex justify-between">
+                        <span className="text-sm">{milestone.title || `Milestone ${index + 1}`}</span>
+                        <span className="text-sm font-medium">${milestone.amount || 'TBD'}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
             </div>
-
-            <DialogFooter className="gap-2">
-              {selectedContract.status === "pending" && (
-                <>
-                  <Button
-                    variant="destructive"
-                    onClick={() => handleRejectContract(selectedContract.id)}
-                    disabled={actionLoading}
-                  >
-                    {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Reject"}
-                  </Button>
-                  <Button
-                    onClick={() => handleAcceptContract(selectedContract.id)}
-                    disabled={actionLoading}
-                  >
-                    {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Accept Contract"}
-                  </Button>
-                </>
-              )}
-              <Button variant="outline" onClick={() => setSelectedContract(null)}>
-                Close
-              </Button>
-            </DialogFooter>
           </DialogContent>
         </Dialog>
       )}
@@ -411,5 +317,4 @@ const ContractsPage: React.FC = () => {
   );
 };
 
-export default ContractsPage;
-
+export default ClientContractsPage;

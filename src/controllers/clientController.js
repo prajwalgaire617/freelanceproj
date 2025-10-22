@@ -202,7 +202,20 @@ const getFreelancerProfile = asyncHandler(async (req, res) => {
       {
         model: User,
         as: 'freelancerUser',
-        attributes: ['id', 'email', 'firstName', 'lastName', 'profileImage']
+        attributes: [
+          'id', 
+          'email', 
+          'firstName', 
+          'lastName', 
+          'profileImage',
+          'bio',
+          'country',
+          'hourlyRate',
+          'availability',
+          'skills',
+          'experiences',
+          'portfolioItems'
+        ]
       }
     ]
   });
@@ -391,8 +404,8 @@ const getMyContracts = asyncHandler(async (req, res) => {
         include: [
           {
             model: User,
-            as: 'user',
-            attributes: ['id', 'firstName', 'lastName', 'profileImage']
+            as: 'freelancerUser',
+            attributes: ['id', 'firstName', 'lastName', 'profileImage', 'email']
           }
         ]
       }
@@ -411,6 +424,7 @@ const getMyContracts = asyncHandler(async (req, res) => {
       currentPage: parseInt(page),
       totalPages,
       totalContracts: count,
+      contractsPerPage: parseInt(limit),
       hasNext: page < totalPages,
       hasPrev: page > 1
     }

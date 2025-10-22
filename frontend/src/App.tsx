@@ -20,6 +20,7 @@ import ApplicationsPage from "./pages/Freelancer/ApplicationsPage";
 import NotFound from "./pages/NotFound";
 import CreateContractPage from "./pages/Client/CreateContractPage";
 import ContractsPage from "./pages/Freelancer/ContractsPage";
+import ClientContractsPage from "./pages/Client/ClientContractsPage";
 import OAuthCallback from "./pages/auth/OAuthCallback";
 import LandingPage from "./pages/LandingPage";
 import AdminCustomSupport from "./pages/cat/admin-customer-support";
@@ -110,6 +111,10 @@ function App() {
           <Route
             path="/contracts/create"
             element={<ProtectedRoute element={<CreateContractPage />} allowedRoles={["client"]} />}
+          />
+          <Route
+            path="/client-contracts"
+            element={<ProtectedRoute element={<ClientContractsPage />} allowedRoles={["client"]} />}
           />
            <Route
         path="/jobs"

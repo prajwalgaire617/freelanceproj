@@ -94,13 +94,18 @@ const CreateContractPage: React.FC = () => {
       return;
     }
 
+    if (!freelancerId || freelancerId === "0") {
+      toast.error("No freelancer selected. Please select a freelancer first.");
+      return;
+    }
+
     try {
       setLoading(true);
       const token = localStorage.getItem("token");
 
       const contractData = {
-        freelancerId: parseInt(freelancerId || "0"),
-        jobApplicationId: parseInt(applicationId || "0"),
+        freelancerId: parseInt(freelancerId),
+        jobApplicationId: applicationId ? parseInt(applicationId) : undefined,
         workTitle: formData.title, // ✅ Changed from 'title' to 'workTitle'
         workDescription: formData.description, // ✅ Changed from 'description' to 'workDescription'
         totalAmount: formData.paymentType === 'fixed' ? parseFloat(formData.amount) : undefined, // ✅ Add totalAmount
@@ -163,6 +168,21 @@ const CreateContractPage: React.FC = () => {
       <Header navItems={clientNav} />
 
       <main className="max-w-4xl mx-auto py-8 px-6">
+        {!freelancerId && (
+          <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <p className="text-yellow-800">
+              ⚠️ No freelancer selected. Please go back and select a freelancer first.
+            </p>
+            <Button 
+              variant="outline" 
+              onClick={() => navigate(-1)} 
+              className="mt-2"
+            >
+              Go Back
+            </Button>
+          </div>
+        )}
+        
         <Card>
           <CardHeader>
             <CardTitle className="text-2xl flex items-center gap-2">
@@ -172,6 +192,11 @@ const CreateContractPage: React.FC = () => {
             {freelancerDetails && (
               <p className="text-muted-foreground">
                 Sending contract to: {freelancerDetails.firstName} {freelancerDetails.lastName}
+              </p>
+            )}
+            {!freelancerDetails && freelancerId && (
+              <p className="text-muted-foreground">
+                Loading freelancer details...
               </p>
             )}
           </CardHeader>

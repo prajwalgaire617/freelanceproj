@@ -11,6 +11,7 @@ function Homepage() {
    
     { label: "Find Jobs", href: "/jobs" },
     { label: "Applications", href: "/applications" },
+    { label: "Contracts", href: "/contracts" },
     { label: "Messages", href: "/messages" },
     { label: "Profile", href: "/freelancerprofile" },
   ];

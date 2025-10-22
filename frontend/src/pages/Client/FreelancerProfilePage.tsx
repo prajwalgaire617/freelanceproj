@@ -93,15 +93,34 @@ const FreelancerProfilePage: React.FC = () => {
   }
 
   const u = freelancer.freelancerUser || freelancer.user;
-  const name = [u?.firstName, u?.lastName].filter(Boolean).join(" ") || "Unnamed Freelancer";
-  const title = freelancer.expertise || freelancer.shortBio || "Freelancer";
-  const location = freelancer.country || freelancer.city || "Remote";
-  const skills: string[] = Array.isArray(freelancer.skills) ? freelancer.skills : (Array.isArray(freelancer.category) ? freelancer.category : []);
-  const experiences: any[] = Array.isArray(freelancer.employmentHistory) ? freelancer.employmentHistory : [];
+  const name = [u?.firstName, u?.lastName].filter(Boolean).join(" ") || 
+               [freelancer?.firstName, freelancer?.lastName].filter(Boolean).join(" ") || 
+               "Unnamed Freelancer";
+  const title = freelancer.expertise || freelancer.shortBio || u?.bio || "Freelancer";
+  const location = u?.country || freelancer.country || freelancer.city || "Remote";
+  
+  // Combine skills from both User and Freelancer models
+  const userSkills = Array.isArray(u?.skills) ? u.skills : [];
+  const freelancerSkills = Array.isArray(freelancer.category) ? freelancer.category : [];
+  const skills: string[] = [...new Set([...userSkills, ...freelancerSkills])];
+  
+  // Combine experiences from both models
+  const userExperiences = Array.isArray(u?.experiences) ? u.experiences : [];
+  const freelancerExperiences = Array.isArray(freelancer.employmentHistory) ? freelancer.employmentHistory : [];
+  const experiences: any[] = [...userExperiences, ...freelancerExperiences];
+  
   const languages = (freelancer.languages && typeof freelancer.languages === 'object') ? freelancer.languages : {};
   const education: any[] = Array.isArray(freelancer.education) ? freelancer.education : [];
   const certifications: any[] = Array.isArray(freelancer.certification) ? freelancer.certification : [];
-  const portfolio: any[] = Array.isArray(freelancer.portfolio) ? freelancer.portfolio : [];
+  
+  // Combine portfolio from both models
+  const userPortfolio = Array.isArray(u?.portfolioItems) ? u.portfolioItems : [];
+  const freelancerPortfolio = Array.isArray(freelancer.portfolio) ? freelancer.portfolio : [];
+  const portfolio: any[] = [...userPortfolio, ...freelancerPortfolio];
+  
+  // Get hourly rate and availability
+  const hourlyRate = u?.hourlyRate || null;
+  const availability = u?.availability || null;
 
   // Ratings are shown directly in the stats card below; no separate variables needed
 
@@ -118,16 +137,29 @@ const FreelancerProfilePage: React.FC = () => {
             </Avatar>
             <div className="flex-1">
               <h1 className="text-2xl md:text-3xl font-bold">{name}</h1>
-              <div className="text-muted-foreground mt-1 flex items-center gap-3">
-                <span>{title}</span>
-                <span className="inline-flex items-center gap-1"><MapPin className="h-4 w-4" /> {location}</span>
+              <div className="text-muted-foreground mt-1 flex items-center gap-3 flex-wrap">
+                <span className="font-medium">{title}</span>
+                <span className="inline-flex items-center gap-1">
+                  <MapPin className="h-4 w-4" /> {location}
+                </span>
+                {u?.email && (
+                  <span className="text-xs">{u.email}</span>
+                )}
               </div>
               <div className="flex flex-wrap gap-4 mt-3 text-sm">
+                {hourlyRate && (
+                  <div className="px-3 py-1 rounded bg-muted">Rate: ${hourlyRate}/hr</div>
+                )}
+                {availability && (
+                  <div className="px-3 py-1 rounded bg-muted capitalize">
+                    Status: {availability}
+                  </div>
+                )}
                 {freelancer.yearsOfExperience && (
                   <div className="px-3 py-1 rounded bg-muted">Experience: {freelancer.yearsOfExperience}</div>
                 )}
                 {freelancer.userType && (
-                  <div className="px-3 py-1 rounded bg-muted">Type: {freelancer.userType}</div>
+                  <div className="px-3 py-1 rounded bg-muted capitalize">Type: {freelancer.userType}</div>
                 )}
                 {typeof freelancer.localFreelance === 'boolean' && (
                   <div className="px-3 py-1 rounded bg-muted">Local: {freelancer.localFreelance ? 'Yes' : 'No'}</div>
@@ -138,8 +170,8 @@ const FreelancerProfilePage: React.FC = () => {
               </div>
             </div>
             <div className="flex flex-col gap-2">
-              <Button onClick={() => navigate('/contracts/create')}>Hire Now</Button>
-              <Button variant="outline" onClick={() => navigate(-1)}>Back</Button>
+              <Button onClick={() => navigate(`/contracts/create?freelancerId=${id}`)}>Hire Now</Button>
+              <Button variant="outline" onClick={() => navigate(`/clientmessages?userId=${id}`)}>Message</Button>
             </div>
           </div>
         </div>
@@ -152,16 +184,32 @@ const FreelancerProfilePage: React.FC = () => {
               <CardTitle>About</CardTitle>
             </CardHeader>
             <CardContent>
-              {freelancer.shortBio ? (
-                <p className="text-sm text-muted-foreground">{freelancer.shortBio}</p>
+              {(u?.bio || freelancer.shortBio) ? (
+                <>
+                  {u?.bio && (
+                    <div className="text-sm mb-3">
+                      <p className="font-medium text-foreground mb-1">Professional Summary</p>
+                      <p className="text-muted-foreground">{u.bio}</p>
+                    </div>
+                  )}
+                  {freelancer.shortBio && u?.bio !== freelancer.shortBio && (
+                    <div className="text-sm">
+                      <p className="font-medium text-foreground mb-1">Additional Info</p>
+                      <p className="text-muted-foreground">{freelancer.shortBio}</p>
+                    </div>
+                  )}
+                </>
               ) : (
                 <p className="text-sm text-muted-foreground">No bio provided.</p>
               )}
               {skills.length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-4">
-                  {skills.map((s) => (
-                    <Badge key={s} variant="secondary">{s}</Badge>
-                  ))}
+                <div className="mt-4">
+                  <p className="font-medium text-sm mb-2">Skills</p>
+                  <div className="flex flex-wrap gap-2">
+                    {skills.map((s, idx) => (
+                      <Badge key={`${s}-${idx}`} variant="secondary">{s}</Badge>
+                    ))}
+                  </div>
                 </div>
               )}
             </CardContent>
@@ -170,23 +218,30 @@ const FreelancerProfilePage: React.FC = () => {
           {experiences.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle>Experience</CardTitle>
+                <CardTitle>Work Experience</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 {experiences.map((exp, idx) => (
-                  <div key={idx} className="p-3 rounded border">
-                    <div className="text-sm font-medium">{exp.title || exp.position || 'Experience'}</div>
-                    {exp.company && (
-                      <div className="text-xs text-muted-foreground">{exp.company}</div>
-                    )}
-                    {(exp.startDate || exp.endDate) && (
-                      <div className="text-xs text-muted-foreground mt-0.5">
-                        {exp.startDate || ''}{(exp.startDate || exp.endDate) ? ' - ' : ''}{exp.endDate || 'Present'}
+                  <div key={idx} className="p-3 rounded border bg-card hover:bg-accent/50 transition-colors">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="text-sm font-semibold">{exp.title || exp.position || exp.role || 'Position'}</div>
+                        {exp.company && (
+                          <div className="text-sm text-muted-foreground flex items-center gap-1 mt-0.5">
+                            <Briefcase className="h-3 w-3" />
+                            {exp.company}
+                          </div>
+                        )}
+                        {(exp.startDate || exp.endDate || exp.startYear || exp.endYear) && (
+                          <div className="text-xs text-muted-foreground mt-1">
+                            {exp.startDate || exp.startYear || ''}{(exp.startDate || exp.startYear) ? ' - ' : ''}{exp.endDate || exp.endYear || (exp.current ? 'Present' : 'Present')}
+                          </div>
+                        )}
+                        {exp.description && (
+                          <p className="text-xs mt-2 text-foreground">{exp.description}</p>
+                        )}
                       </div>
-                    )}
-                    {exp.description && (
-                      <div className="text-xs mt-1">{exp.description}</div>
-                    )}
+                    </div>
                   </div>
                 ))}
               </CardContent>
@@ -200,20 +255,40 @@ const FreelancerProfilePage: React.FC = () => {
               </CardHeader>
               <CardContent>
                 <div className="grid sm:grid-cols-2 gap-3">
-                  {portfolio.map((p, idx) => (
-                    <a
-                      key={idx}
-                      href={typeof p.url === 'string' ? p.url : '#'}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="p-3 border rounded block hover:bg-accent/50"
-                    >
-                      <div className="text-sm font-medium truncate">{p.name || p.title || 'Portfolio Item'}</div>
-                      {p.description && (
-                        <div className="text-xs text-muted-foreground truncate">{p.description}</div>
-                      )}
-                    </a>
-                  ))}
+                  {portfolio.map((p, idx) => {
+                    const portfolioUrl = buildServerUrl(p.url) || (typeof p.url === 'string' ? p.url : '#');
+                    const isImage = typeof p.url === 'string' && /\.(jpg|jpeg|png|gif|webp)$/i.test(p.url);
+                    
+                    return (
+                      <div
+                        key={idx}
+                        className="p-3 border rounded hover:bg-accent/50 transition-colors"
+                      >
+                        {isImage && (
+                          <img 
+                            src={portfolioUrl} 
+                            alt={p.name || p.title || 'Portfolio'} 
+                            className="w-full h-32 object-cover rounded mb-2"
+                          />
+                        )}
+                        <a
+                          href={portfolioUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="block"
+                        >
+                          <div className="text-sm font-medium truncate hover:text-primary">
+                            {p.name || p.title || 'Portfolio Item'}
+                          </div>
+                          {p.description && (
+                            <div className="text-xs text-muted-foreground line-clamp-2 mt-1">
+                              {p.description}
+                            </div>
+                          )}
+                        </a>
+                      </div>
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>

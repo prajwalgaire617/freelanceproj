@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import axiosInstance from "@/api/axios";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 import Header from "@/components/layout/Header";
 import ProfileHeader from "@/components/freelancer/profile/ProfileHeader";
@@ -19,6 +21,8 @@ export default function FreelancerProfile() {
 
     const [activeTab, setActiveTab] = useState("personal");
     const [photoUrl, setPhotoUrl] = useState<string | undefined>(undefined);
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
     const [verificationStatus, setVerificationStatus] = useState<VerificationStatus>({
         emailVerified: true,
         phoneVerified: false,
@@ -41,56 +45,116 @@ export default function FreelancerProfile() {
 
 
     useEffect(() => {
-        const load = async () => {
+        const loadProfileData = async () => {
+            setLoading(true);
             try {
+                console.log('🔄 Loading profile data...');
                 const token = localStorage.getItem("token");
-                if (!token) return;
-                const res = await axiosInstance.get("/auth/me", { headers: { Authorization: `Bearer ${token}` } });
-                const u = res.data?.user;
-                if (u) {
+                if (!token) {
+                    toast.error("Please log in to view your profile");
+                    return;
+                }
+
+                const response = await axiosInstance.get("/auth/me", { 
+                    headers: { Authorization: `Bearer ${token}` } 
+                });
+                
+                const user = response.data?.user;
+                console.log('👤 Loaded user data:', user);
+                
+                if (user) {
                     const apiBase = axiosInstance.defaults.baseURL || "";
                     const serverOrigin = apiBase.replace(/\/?api\/?$/, "");
+                    
                     setProfileData((prev) => ({
                         ...prev,
-                        name: [u.firstName, u.lastName].filter(Boolean).join(" ") || prev.name,
-                        bio: u.bio || prev.bio,
-                        location: u.location || prev.location,
-                        hourlyRate: (u.hourlyRate != null ? String(u.hourlyRate) : prev.hourlyRate),
-                        availability: u.availability || prev.availability,
-                        skills: Array.isArray(u.skills) ? u.skills : prev.skills,
-                        experience: Array.isArray(u.experiences) ? u.experiences : prev.experience,
-                        portfolioItems: Array.isArray(u.portfolioItems)
-                          ? u.portfolioItems.map((it: any) => ({
-                              ...it,
-                              url: typeof it.url === 'string' && it.url.startsWith('/') ? `${serverOrigin}${it.url}` : it.url,
+                        name: [user.firstName, user.lastName].filter(Boolean).join(" ") || prev.name,
+                        bio: user.bio || prev.bio,
+                        location: user.location || user.country || prev.location, // fallback to country
+                        hourlyRate: (user.hourlyRate != null ? String(user.hourlyRate) : prev.hourlyRate),
+                        availability: user.availability || prev.availability,
+                        skills: Array.isArray(user.skills) ? user.skills : prev.skills,
+                        experience: Array.isArray(user.experiences) ? user.experiences : prev.experience,
+                        portfolioItems: Array.isArray(user.portfolioItems)
+                          ? user.portfolioItems.map((item: any) => ({
+                              ...item,
+                              url: typeof item.url === 'string' && item.url.startsWith('/') ? 
+                                   `${serverOrigin}${item.url}` : item.url,
                             }))
                           : prev.portfolioItems,
                     }));
-                    if (u.profileImage) {
-                        setPhotoUrl(`${serverOrigin}${u.profileImage}`);
+                    
+                    // Set profile image if available
+                    if (user.profileImage) {
+                        setPhotoUrl(`${serverOrigin}${user.profileImage}`);
                     }
+                    
+                    console.log('✅ Profile data loaded successfully');
                 }
-            } catch {}
+            } catch (error: any) {
+                console.error('❌ Failed to load profile data:', error);
+                toast.error("Failed to load profile data");
+            } finally {
+                setLoading(false);
+            }
         };
-        load();
+        
+        loadProfileData();
     }, []);
 
     const handleSave = async () => {
+        setSaving(true);
         try {
+            console.log('💾 Saving profile data:', profileData);
+            
             const token = localStorage.getItem("token");
+            if (!token) {
+                toast.error("Please log in to save your profile");
+                return;
+            }
+
+            // Prepare the data to send
             const [firstName, ...rest] = (profileData.name || "").trim().split(" ");
             const lastName = rest.join(" ");
-            await axiosInstance.put(
+            
+            const updateData = {
+                firstName: firstName || undefined,
+                lastName: lastName || undefined,
+                bio: profileData.bio || undefined,
+                location: profileData.location || undefined,
+                hourlyRate: profileData.hourlyRate ? parseFloat(profileData.hourlyRate) : undefined,
+                availability: profileData.availability || undefined,
+            };
+
+            console.log('📤 Sending update data:', updateData);
+
+            const response = await axiosInstance.put(
                 "/auth/profile",
-                {
-                    firstName: firstName || undefined,
-                    lastName: lastName || undefined,
-                    bio: profileData.bio || undefined,
-                },
-                { headers: token ? { Authorization: `Bearer ${token}` } : undefined }
+                updateData,
+                { headers: { Authorization: `Bearer ${token}` } }
             );
-        } catch (e) {
-            console.error(e);
+
+            console.log('✅ Profile update response:', response.data);
+            
+            // Update local state with server response
+            const updatedUser = response.data?.user;
+            if (updatedUser) {
+                setProfileData(prev => ({
+                    ...prev,
+                    name: [updatedUser.firstName, updatedUser.lastName].filter(Boolean).join(" ") || prev.name,
+                    bio: updatedUser.bio || prev.bio,
+                    location: updatedUser.location || prev.location,
+                    hourlyRate: updatedUser.hourlyRate != null ? String(updatedUser.hourlyRate) : prev.hourlyRate,
+                    availability: updatedUser.availability || prev.availability,
+                }));
+            }
+
+            toast.success("Profile updated successfully!");
+        } catch (error: any) {
+            console.error('❌ Profile update error:', error);
+            toast.error(error.response?.data?.error || "Failed to update profile. Please try again.");
+        } finally {
+            setSaving(false);
         }
     };
 
@@ -135,30 +199,66 @@ export default function FreelancerProfile() {
     ];
 
     const addSkill = async (skill: string) => {
-        if (!skill || profileData.skills.includes(skill)) return;
+        if (!skill || profileData.skills.includes(skill)) {
+            toast.error("Skill already exists or is empty");
+            return;
+        }
+        
         const newSkills = [...profileData.skills, skill];
+        
+        // Optimistic update
         setProfileData({ ...profileData, skills: newSkills });
+        
         try {
             const token = localStorage.getItem("token");
+            if (!token) {
+                toast.error("Please log in to update skills");
+                return;
+            }
+            
+            console.log('➕ Adding skill:', skill);
             await axiosInstance.put(
                 "/auth/profile/skills",
                 { skills: newSkills },
-                { headers: token ? { Authorization: `Bearer ${token}` } : undefined }
+                { headers: { Authorization: `Bearer ${token}` } }
             );
-        } catch (e) { console.error(e); }
+            console.log('✅ Skill added successfully');
+            toast.success(`Added skill: ${skill}`);
+        } catch (error: any) {
+            console.error('❌ Failed to add skill:', error);
+            // Revert optimistic update
+            setProfileData({ ...profileData, skills: profileData.skills });
+            toast.error("Failed to add skill. Please try again.");
+        }
     };
 
     const removeSkill = async (skill: string) => {
         const newSkills = profileData.skills.filter(s => s !== skill);
+        
+        // Optimistic update
         setProfileData({ ...profileData, skills: newSkills });
+        
         try {
             const token = localStorage.getItem("token");
+            if (!token) {
+                toast.error("Please log in to update skills");
+                return;
+            }
+            
+            console.log('➖ Removing skill:', skill);
             await axiosInstance.put(
                 "/auth/profile/skills",
                 { skills: newSkills },
-                { headers: token ? { Authorization: `Bearer ${token}` } : undefined }
+                { headers: { Authorization: `Bearer ${token}` } }
             );
-        } catch (e) { console.error(e); }
+            console.log('✅ Skill removed successfully');
+            toast.success(`Removed skill: ${skill}`);
+        } catch (error: any) {
+            console.error('❌ Failed to remove skill:', error);
+            // Revert optimistic update
+            setProfileData({ ...profileData, skills: [...profileData.skills, skill] });
+            toast.error("Failed to remove skill. Please try again.");
+        }
     };
 
     const freelancerNav = [
@@ -169,12 +269,28 @@ export default function FreelancerProfile() {
         { label: "Profile", href: "/freelancerprofile" },
     ];
 
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-background flex items-center justify-center">
+                <div className="flex flex-col items-center gap-4">
+                    <Loader2 className="w-8 h-8 animate-spin" />
+                    <p className="text-muted-foreground">Loading your profile...</p>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="min-h-screen bg-background">
             <Header navItems={freelancerNav} showLogout />
             {/* Header */}
 
-            <ProfileHeader profileData={profileData} onSave={handleSave} photoUrl={photoUrl} />
+            <ProfileHeader 
+                profileData={profileData} 
+                onSave={handleSave} 
+                photoUrl={photoUrl}
+                saving={saving}
+            />
 
             {/* Main Content */}
             <div className="container mx-auto px-4 py-8">
@@ -266,10 +382,7 @@ export default function FreelancerProfile() {
                     <TabsContent value="verification">
                         <VerificationTab
                             status={verificationStatus}
-                            onVerifyEmail={() => setVerificationStatus({ ...verificationStatus, emailVerified: true })}
-                            onVerifyPhone={() => setVerificationStatus({ ...verificationStatus, phoneVerified: true })}
-                            onStartKYC={() => setVerificationStatus({ ...verificationStatus, kycCompleted: true })}
-                            onAddPaymentMethod={() => setVerificationStatus({ ...verificationStatus, paymentMethodAdded: true })}
+                            setStatus={setVerificationStatus}
                         />
                     </TabsContent>
                 </Tabs>

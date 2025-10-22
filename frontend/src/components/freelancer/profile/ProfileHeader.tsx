@@ -1,19 +1,18 @@
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { MapPin, Star } from "lucide-react";
+import { MapPin, Star, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { type ProfileData } from "../../../type/job/profiledata";
-
-
 
 interface ProfileHeaderProps {
   profileData: ProfileData;
   onSave: () => void;
   photoUrl?: string;
+  saving?: boolean;
 }
 
-export default function ProfileHeader({ profileData, onSave, photoUrl }: ProfileHeaderProps) {
+export default function ProfileHeader({ profileData, onSave, photoUrl, saving = false }: ProfileHeaderProps) {
   return (
     <div className="border-b bg-card">
       <div className="container mx-auto px-4 py-6">
@@ -46,7 +45,16 @@ export default function ProfileHeader({ profileData, onSave, photoUrl }: Profile
               </div>
             </div>
           </div>
-          <Button onClick={onSave}>Save Changes</Button>
+          <Button onClick={onSave} disabled={saving}>
+            {saving ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              "Save Changes"
+            )}
+          </Button>
         </div>
       </div>
     </div>
