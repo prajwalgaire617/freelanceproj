@@ -186,10 +186,18 @@ const Header: React.FC<HeaderProps> = ({ navItems, showLogout }) => {
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
                     <Link
+                      to={(user as any)?.userType === 'freelancer' ? "/freelancerhomepage" : (user as any)?.userType === 'agency' ? "/agencyhomepage" : "/clienthomepage"}
+                      className="w-full"
+                    >
+                      Home
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link
                       to={(user as any)?.userType === 'freelancer' ? "/freelancerprofile" : (user as any)?.userType === 'agency' ? "/agency/profile" : "/clientprofile"}
                       className="w-full"
                     >
-                      Profile
+                      Edit Profile
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem disabled>

@@ -122,7 +122,22 @@ const Navbar: React.FC = () => {
     }
   };
 
-  const handleProfileView = () => navigate("/profile");
+  const handleProfileView = () => {
+    if (!user) {
+      navigate("/");
+      return;
+    }
+    const userType = (user as any).userType;
+    if (userType === "freelancer") {
+      navigate("/freelancerhomepage");
+    } else if (userType === "client") {
+      navigate("/clienthomepage");
+    } else if (userType === "agency") {
+      navigate("/agencyhomepage");
+    } else {
+      navigate("/");
+    }
+  };
 
   // ------------- Auth / role logic -------------
   useEffect(() => {
