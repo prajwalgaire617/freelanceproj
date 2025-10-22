@@ -46,23 +46,26 @@ const applyForJob = asyncHandler(async (req, res) => {
   
   if (jobHireType === 'freelancer' && applicantType !== 'freelancer') {
     return res.status(403).json({ 
-      error: 'This job is only open to freelancers',
-      message: 'The job poster is only accepting applications from freelancers'
+      success: false,
+      error: 'Application not allowed',
+      message: 'This job is only open to freelancers. As an agency, you cannot apply to freelancer-only jobs.'
     });
   }
   
   if (jobHireType === 'agency' && applicantType !== 'agency') {
     return res.status(403).json({ 
-      error: 'This job is only open to agencies',
-      message: 'The job poster is only accepting applications from agencies'
+      success: false,
+      error: 'Application not allowed',
+      message: 'This job is only open to agencies. As a freelancer, you cannot apply to agency-only jobs.'
     });
   }
   
   // Note: Agencies should NOT be able to apply to other agency's posts
   if (applicantType === 'agency' && jobPost.client.userType === 'agency') {
     return res.status(403).json({ 
-      error: 'Agencies cannot apply to other agency job posts',
-      message: 'Agencies can only apply to client job posts'
+      success: false,
+      error: 'Application not allowed',
+      message: 'Agencies cannot apply to other agency job posts. You can only apply to client job postings.'
     });
   }
 

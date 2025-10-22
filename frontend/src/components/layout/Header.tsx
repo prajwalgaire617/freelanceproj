@@ -89,6 +89,7 @@ const Header: React.FC<HeaderProps> = ({ navItems, showLogout }) => {
             const role = (user as any).userType;
             if (role === "client") navigate("/clienthomepage");
             else if (role === "freelancer") navigate("/freelancerhomepage");
+            else if (role === "agency") navigate("/agencyhomepage");
             else navigate("/");
           }}
         >
@@ -185,7 +186,7 @@ const Header: React.FC<HeaderProps> = ({ navItems, showLogout }) => {
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
                     <Link
-                      to={(user as any)?.userType === 'freelancer' ? "/freelancerprofile" : "/clientprofile"}
+                      to={(user as any)?.userType === 'freelancer' ? "/freelancerprofile" : (user as any)?.userType === 'agency' ? "/agency/profile" : "/clientprofile"}
                       className="w-full"
                     >
                       Profile

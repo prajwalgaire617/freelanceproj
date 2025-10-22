@@ -16,3 +16,13 @@ export const FREELANCER_NAV_ITEMS = [
   { label: "Messages", href: "/messages" },
   { label: "Profile", href: "/freelancerprofile" },
 ];
+
+// Shared navigation items for agency pages
+export const AGENCY_NAV_ITEMS = [
+  { label: "Dashboard", href: "/agencyhomepage" },
+  { label: "My Jobs", href: "/agency/my-jobs" },
+  { label: "Find Jobs", href: "/agency/jobs" },
+  { label: "Find Freelancers", href: "/agency/freelancers" },
+  { label: "Messages", href: "/agencymessages" },
+  { label: "Profile", href: "/agency/profile" },
+];

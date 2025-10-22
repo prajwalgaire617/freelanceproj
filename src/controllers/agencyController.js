@@ -8,7 +8,15 @@ const { validationResult } = require('express-validator');
 const createAgencyProfile = asyncHandler(async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
+    return res.status(400).json({ 
+      success: false,
+      error: 'Validation failed',
+      message: 'Please check your input and try again',
+      details: errors.array().map(err => ({
+        field: err.param,
+        message: err.msg
+      }))
+    });
   }
 
   const {
@@ -28,38 +36,61 @@ const createAgencyProfile = asyncHandler(async (req, res) => {
 
   const userId = req.userId;
 
-  // Check if user already has an agency
-  const existingAgency = await db.Agency.findOne({ where: { userId } });
-  if (existingAgency) {
-    return res.status(400).json({ error: 'User already has an agency profile' });
+  try {
+    // Check if user already has an agency
+    const existingAgency = await db.Agency.findOne({ where: { userId } });
+    if (existingAgency) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Agency profile already exists',
+        message: 'You already have an agency profile. Please update your existing profile instead.'
+      });
+    }
+
+    // Validate required fields
+    if (!agencyName || !agencyName.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Agency name is required',
+        message: 'Please provide a valid agency name'
+      });
+    }
+
+    // Create agency
+    const agency = await db.Agency.create({
+      userId,
+      agencyName: agencyName.trim(),
+      description: description?.trim() || null,
+      website,
+      phone,
+      address,
+      city,
+      country,
+      businessType,
+      taxId,
+      specializations: Array.isArray(specializations) ? specializations : [],
+      teamSize: teamSize ? parseInt(teamSize) : 1,
+      yearsInBusiness: yearsInBusiness ? parseInt(yearsInBusiness) : 0
+    });
+
+    // Get agency with user details
+    const agencyWithDetails = await db.Agency.findByPk(agency.id, {
+      include: [{ model: db.User, as: 'agencyUser' }]
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Agency profile created successfully',
+      agency: agencyWithDetails
+    });
+  } catch (error) {
+    console.error('Error creating agency profile:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create agency profile',
+      message: 'An error occurred while creating your agency profile. Please try again later.'
+    });
   }
-
-  // Create agency
-  const agency = await db.Agency.create({
-    userId,
-    agencyName,
-    description,
-    website,
-    phone,
-    address,
-    city,
-    country,
-    businessType,
-    taxId,
-    specializations,
-    teamSize,
-    yearsInBusiness
-  });
-
-  // Get agency with user details
-  const agencyWithDetails = await db.Agency.findByPk(agency.id, {
-    include: [{ model: db.User, as: 'user' }]
-  });
-
-  res.status(201).json({
-    message: 'Agency profile created successfully',
-    agency: agencyWithDetails
-  });
 });
 
 // @desc    Get agency profile
@@ -68,16 +99,32 @@ const createAgencyProfile = asyncHandler(async (req, res) => {
 const getAgencyProfile = asyncHandler(async (req, res) => {
   const userId = req.userId;
 
-  const agency = await db.Agency.findOne({
-    where: { userId },
-    include: [{ model: db.User, as: 'user' }]
-  });
+  try {
+    const agency = await db.Agency.findOne({
+      where: { userId },
+      include: [{ model: db.User, as: 'agencyUser' }]
+    });
 
-  if (!agency) {
-    return res.status(404).json({ error: 'Agency profile not found' });
+    if (!agency) {
+      return res.status(404).json({ 
+        success: false,
+        error: 'Agency profile not found',
+        message: 'No agency profile found for this account. Please create one to continue.'
+      });
+    }
+
+    res.json({ 
+      success: true,
+      agency 
+    });
+  } catch (error) {
+    console.error('Error fetching agency profile:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch agency profile',
+      message: 'An error occurred while loading your profile. Please try again later.'
+    });
   }
-
-  res.json({ agency });
 });
 
 // @desc    Update agency profile
@@ -101,31 +148,54 @@ const updateAgencyProfile = asyncHandler(async (req, res) => {
 
   const userId = req.userId;
 
-  const agency = await db.Agency.findOne({ where: { userId } });
-  if (!agency) {
-    return res.status(404).json({ error: 'Agency profile not found' });
+  try {
+    const agency = await db.Agency.findOne({ where: { userId } });
+    if (!agency) {
+      return res.status(404).json({ 
+        success: false,
+        error: 'Agency profile not found',
+        message: 'No agency profile found. Please create one first.'
+      });
+    }
+
+    // Validate agency name if provided
+    if (agencyName !== undefined && (!agencyName || !agencyName.trim())) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid agency name',
+        message: 'Agency name cannot be empty'
+      });
+    }
+
+    // Update agency
+    await agency.update({
+      agencyName: agencyName ? agencyName.trim() : agency.agencyName,
+      description: description !== undefined ? (description?.trim() || null) : agency.description,
+      website: website !== undefined ? website : agency.website,
+      phone: phone !== undefined ? phone : agency.phone,
+      address: address !== undefined ? address : agency.address,
+      city: city !== undefined ? city : agency.city,
+      country: country !== undefined ? country : agency.country,
+      businessType: businessType !== undefined ? businessType : agency.businessType,
+      taxId: taxId !== undefined ? taxId : agency.taxId,
+      specializations: specializations !== undefined ? (Array.isArray(specializations) ? specializations : []) : agency.specializations,
+      teamSize: teamSize !== undefined ? parseInt(teamSize) : agency.teamSize,
+      yearsInBusiness: yearsInBusiness !== undefined ? parseInt(yearsInBusiness) : agency.yearsInBusiness
+    });
+
+    res.json({
+      success: true,
+      message: 'Agency profile updated successfully',
+      agency
+    });
+  } catch (error) {
+    console.error('Error updating agency profile:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update agency profile',
+      message: 'An error occurred while updating your profile. Please try again later.'
+    });
   }
-
-  // Update agency
-  await agency.update({
-    agencyName,
-    description,
-    website,
-    phone,
-    address,
-    city,
-    country,
-    businessType,
-    taxId,
-    specializations,
-    teamSize,
-    yearsInBusiness
-  });
-
-  res.json({
-    message: 'Agency profile updated successfully',
-    agency
-  });
 });
 
 // @desc    Get all agencies

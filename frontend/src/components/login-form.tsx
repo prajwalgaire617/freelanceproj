@@ -67,6 +67,7 @@ export function LoginForm({ className, ...props }: React.ComponentProps<"div">) 
       // Redirect based on role
       if (user.userType === "freelancer") navigate("/freelancerhomepage");
       else if (user.userType === "client") navigate("/clienthomepage");
+      else if (user.userType === "agency") navigate("/agencyhomepage");
       else navigate("/");
     } catch (err: any) {
       setError(err.response?.data?.error || err.response?.data?.message || "Invalid credentials");
@@ -112,6 +113,7 @@ export function LoginForm({ className, ...props }: React.ComponentProps<"div">) 
       // Redirect based on role
       if (verifiedUser.userType === "freelancer") navigate("/freelancerhomepage");
       else if (verifiedUser.userType === "client") navigate("/clienthomepage");
+      else if (verifiedUser.userType === "agency") navigate("/agencyhomepage");
       else navigate("/");
     }
   };

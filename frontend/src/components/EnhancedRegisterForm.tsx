@@ -351,6 +351,10 @@ export const EnhancedRegisterForm: React.FC = () => {
             <RadioGroupItem value="client" id="r2" />
             <Label htmlFor="r2" className="text-sm font-normal cursor-pointer">Client</Label>
           </div>
+          <div className="flex items-center gap-2">
+            <RadioGroupItem value="agency" id="r3" />
+            <Label htmlFor="r3" className="text-sm font-normal cursor-pointer">Agency</Label>
+          </div>
         </RadioGroup>
       </Field>
 
@@ -620,6 +624,13 @@ export const EnhancedRegisterForm: React.FC = () => {
       {formData.userType === "client" && (
         <div className="text-center py-8">
           <p className="text-gray-600">You're all set! Click "Create Account" to complete your registration.</p>
+        </div>
+      )}
+
+      {formData.userType === "agency" && (
+        <div className="text-center py-8">
+          <p className="text-gray-600">You're registering as an agency! You'll be able to post jobs and hire freelancers.</p>
+          <p className="text-sm text-gray-500 mt-2">Complete your agency profile after registration.</p>
         </div>
       )}
     </div>
