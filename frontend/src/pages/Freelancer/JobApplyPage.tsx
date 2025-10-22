@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Loader2, Coins, AlertCircle } from "lucide-react";
 import { type JobPost } from "@/type/job/jobpost";
+import { FREELANCER_NAV_ITEMS } from "@/constants/navigation";
 
 const JobApplyPage: React.FC = () => {
   const { jobId } = useParams();
@@ -27,13 +28,6 @@ const JobApplyPage: React.FC = () => {
   const [userConnects, setUserConnects] = useState(0);
   const [connectError, setConnectError] = useState<string | null>(null);
   const [useClientBudget, setUseClientBudget] = useState(false);
-    const freelancerNav = [
-    { label: "Freelancer Search", href: "/freelancers" },
-    { label: "Post Job", href: "/post-job" },
-    { label: "Applications", href: "/applications" },
-    { label: "Messages", href: "/messages" },
-    { label: "Contracts", href: "/contracts" },
-  ];
 
   // Fetch user's connect balance
   const fetchUserConnects = async () => {
@@ -137,7 +131,7 @@ const JobApplyPage: React.FC = () => {
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
-        <Header navItems={freelancerNav} />
+        <Header navItems={FREELANCER_NAV_ITEMS} showLogout />
       <main className="max-w-3xl mx-auto py-12 px-6 w-full">
         <Card className="shadow-lg rounded-2xl border border-border/60">
           <CardHeader className="pb-4 border-b border-border/40">

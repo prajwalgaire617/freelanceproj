@@ -11,6 +11,7 @@ import Header from "@/components/layout/Header";
 import { useNotifications } from "@/context/NotificationContext";
 import { toast } from "sonner";
 import { Loader2, FileText, DollarSign, Calendar } from "lucide-react";
+import { CLIENT_NAV_ITEMS } from "@/constants/navigation";
 
 const CreateContractPage: React.FC = () => {
   const navigate = useNavigate();
@@ -36,13 +37,6 @@ const CreateContractPage: React.FC = () => {
     terms: "",
     deliverables: "",
   });
-
-  const clientNav = [
-    { label: "Dashboard", href: "/clienthomepage" },
-    { label: "My Jobs", href: "/my-jobs" },
-    { label: "Messages", href: "/clientmessages" },
-    { label: "Contracts", href: "/contracts" },
-  ];
 
   useEffect(() => {
     fetchDetails();
@@ -165,7 +159,7 @@ const CreateContractPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header navItems={clientNav} />
+      <Header navItems={CLIENT_NAV_ITEMS} showLogout />
 
       <main className="max-w-4xl mx-auto py-8 px-6">
         {!freelancerId && (

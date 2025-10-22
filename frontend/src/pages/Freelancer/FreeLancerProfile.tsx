@@ -13,6 +13,7 @@ import { ExperienceTab } from "@/components/freelancer/profile/ExperienceTab";
 import { type PortfolioItem, type ProfileData, type Transaction, type VerificationStatus } from "@/type/job/profiledata";
 import { EarningsTab } from "@/components/freelancer/profile/EarningTab";
 import { VerificationTab } from "@/components/freelancer/profile/VerificationTab";
+import { FREELANCER_NAV_ITEMS } from "@/constants/navigation";
 // import { useToast } from "@/hooks/use-toast";
 
 export default function FreelancerProfile() {
@@ -261,14 +262,6 @@ export default function FreelancerProfile() {
         }
     };
 
-    const freelancerNav = [
-        { label: "Homepage", href: "/freelancerhomepage" },
-        { label: "Find Jobs", href: "/jobs" },
-        { label: "Applications", href: "/applications" },
-        { label: "Messages", href: "/messages" },
-        { label: "Profile", href: "/freelancerprofile" },
-    ];
-
     if (loading) {
         return (
             <div className="min-h-screen bg-background flex items-center justify-center">
@@ -282,7 +275,7 @@ export default function FreelancerProfile() {
 
     return (
         <div className="min-h-screen bg-background">
-            <Header navItems={freelancerNav} showLogout />
+            <Header navItems={FREELANCER_NAV_ITEMS} showLogout />
             {/* Header */}
 
             <ProfileHeader 

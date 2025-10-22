@@ -31,6 +31,7 @@ import axiosInstance from "@/api/axios";
 import Header from "@/components/layout/Header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { FREELANCER_NAV_ITEMS } from "@/constants/navigation";
 
 interface JobSummary {
   id?: number;
@@ -61,14 +62,6 @@ const ApplicationsPage: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [newStatus, setNewStatus] = useState<string>("");
   const [modalError, setModalError] = useState<string | null>(null);
-
-  const nav = [
-    { label: "Homepage", href: "/freelancerhomepage" },
-    { label: "Find Jobs", href: "/jobs" },
-    { label: "Applications", href: "/applications" },
-    { label: "Messages", href: "/messages" },
-    { label: "Profile", href: "/freelancerprofile" },
-  ];
 
   const fetchApps = async () => {
       try {
@@ -145,7 +138,7 @@ const ApplicationsPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header navItems={nav} showLogout />
+      <Header navItems={FREELANCER_NAV_ITEMS} showLogout />
 
       <div className="container mx-auto px-4 py-8 space-y-4">
         <h1 className="text-2xl font-semibold">My Applications</h1>

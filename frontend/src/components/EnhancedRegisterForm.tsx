@@ -46,7 +46,7 @@ interface FormData {
   email: string;
   password: string;
   confirmPassword: string;
-  userType: "freelancer" | "client";
+  userType: "freelancer" | "client" | "agency";
   
   // Additional fields
   country: string;
@@ -112,7 +112,7 @@ export const EnhancedRegisterForm: React.FC = () => {
     setFieldErrors(prev => ({ ...prev, [id]: "" }));
   };
 
-  const handleUserTypeChange = (value: "freelancer" | "client") => {
+  const handleUserTypeChange = (value: "freelancer" | "client" | "agency") => {
     setFormData(prev => ({ ...prev, userType: value }));
   };
 
@@ -273,6 +273,7 @@ export const EnhancedRegisterForm: React.FC = () => {
       // Redirect based on role
       if (user.userType === "freelancer") navigate("/freelancerhomepage");
       else if (user.userType === "client") navigate("/clienthomepage");
+      else if (user.userType === "agency") navigate("/agencyhomepage");
       else navigate("/");
 
     } catch (err: any) {

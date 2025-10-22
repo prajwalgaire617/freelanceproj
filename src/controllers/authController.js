@@ -220,6 +220,22 @@ const register = asyncHandler(async (req, res) => {
       website: '',
       description: 'New client organization'
     });
+  } else if (userType === 'agency') {
+    // Create agency profile for new agency users
+    await db.Agency.create({
+      userId: user.id,
+      agencyName: companyName || `${firstName} ${lastName} Agency`,
+      description: bio || 'New agency on WorkLab',
+      website: companyWebsite || '',
+      city: '',
+      country: country || '',
+      businessType: 'other',
+      specializations: [],
+      teamSize: 1,
+      yearsInBusiness: 0,
+      isActive: true,
+      isVerified: false
+    });
   }
 
   // Create connect record for the 20 free connects

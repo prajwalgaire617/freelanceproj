@@ -17,6 +17,7 @@ import {
   XCircle,
   Eye
 } from "lucide-react";
+import { FREELANCER_NAV_ITEMS } from "@/constants/navigation";
 
 interface Contract {
   id: number;
@@ -57,13 +58,6 @@ const ContractsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
-
-  const freelancerNav = [
-    { label: "Find Work", href: "/jobs" },
-    { label: "My Applications", href: "/applications" },
-    { label: "Contracts", href: "/contracts" },
-    { label: "Messages", href: "/messages" },
-  ];
 
   useEffect(() => {
     fetchContracts();
@@ -193,7 +187,7 @@ const ContractsPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header navItems={freelancerNav} />
+      <Header navItems={FREELANCER_NAV_ITEMS} showLogout />
 
       <main className="max-w-7xl mx-auto py-8 px-6">
         <div className="flex justify-between items-center mb-6">

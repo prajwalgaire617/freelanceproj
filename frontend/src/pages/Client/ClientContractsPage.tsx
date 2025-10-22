@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import Header from "@/components/layout/Header";
 import { toast } from "sonner";
+import { CLIENT_NAV_ITEMS } from "@/constants/navigation";
 import { 
   Loader2, 
   FileText, 
@@ -58,13 +59,6 @@ const ClientContractsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
 
-  const clientNav = [
-    { label: "Dashboard", href: "/clienthomepage" },
-    { label: "My Jobs", href: "/my-jobs" },
-    { label: "Contracts", href: "/client-contracts" },
-    { label: "Messages", href: "/clientmessages" },
-  ];
-
   useEffect(() => {
     fetchContracts();
   }, []);
@@ -114,7 +108,7 @@ const ClientContractsPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header navItems={clientNav} />
+      <Header navItems={CLIENT_NAV_ITEMS} showLogout />
 
       <main className="max-w-7xl mx-auto py-8 px-6">
         <div className="flex justify-between items-center mb-6">

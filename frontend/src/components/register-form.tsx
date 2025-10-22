@@ -31,7 +31,7 @@ interface FormData {
   email: string;
   password: string;
   confirmPassword: string;
-  userType: "freelancer" | "client";
+  userType: "freelancer" | "client" | "agency";
 }
 
 interface BackendError {
@@ -62,7 +62,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ className, ...props 
     setFieldErrors(prev => ({ ...prev, [id]: "" }));
   };
 
-  const handleUserTypeChange = (value: "freelancer" | "client") => {
+  const handleUserTypeChange = (value: "freelancer" | "client" | "agency") => {
     setFormData(prev => ({ ...prev, userType: value }));
   };
 
@@ -115,6 +115,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ className, ...props 
       setTimeout(() => {
         if (user.userType === "freelancer") navigate("/freelancerhomepage");
         else if (user.userType === "client") navigate("/clienthomepage");
+        else if (user.userType === "agency") navigate("/agencyhomepage");
         else navigate("/");
       }, 1500);
     } catch (err: any) {
@@ -219,6 +220,10 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ className, ...props 
                   <div className="flex items-center gap-2">
                     <RadioGroupItem value="client" id="r2" />
                     <Label htmlFor="r2" className="text-sm font-normal cursor-pointer">Client</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <RadioGroupItem value="agency" id="r3" />
+                    <Label htmlFor="r3" className="text-sm font-normal cursor-pointer">Agency</Label>
                   </div>
                 </RadioGroup>
               </Field>

@@ -14,6 +14,7 @@ import { useAuth } from "@/context/AuthContext";
 // import { useNotifications } from "@/context/NotificationContext";
 import axiosInstance from "@/api/axios";
 import { toast } from "sonner";
+import { CLIENT_NAV_ITEMS } from "@/constants/navigation";
 
 export default function ClientDashboard() {
   const { user } = useAuth();
@@ -94,18 +95,11 @@ export default function ClientDashboard() {
     { label: "Unread Messages", value: stats.unreadMessages.toString(), icon: MessageSquare },
   ];
 
-    const ClientNav = [
-    { label: "Freelancer Search", href: "/freelancers" },
-    { label: "Applications", href: "/applications" },
-    { label: "Messages", href: "/clientmessages" },
-    { label: "Contracts", href: "/client-contracts" },
-  ];
-
   return (
     <div className="min-h-screen bg-background">
         {/* Header */}
       <div className=" flex justify-between">
-      <Header navItems={ClientNav} showLogout />
+      <Header navItems={CLIENT_NAV_ITEMS} showLogout />
        <Button onClick={() => setShowJobPostForm(true)} className=" mt-2 mr-2">
             <Plus className="w-4 h-4 mr-1" />
             Post a Job

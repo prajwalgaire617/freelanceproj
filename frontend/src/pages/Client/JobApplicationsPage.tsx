@@ -18,6 +18,7 @@ import {
   DollarSign,
   Calendar
 } from "lucide-react";
+import { CLIENT_NAV_ITEMS } from "@/constants/navigation";
 
 interface Applicant {
   id: number;
@@ -55,13 +56,6 @@ const JobApplicationsPage: React.FC = () => {
   const [applicants, setApplicants] = useState<Applicant[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedApplicant, setSelectedApplicant] = useState<Applicant | null>(null);
-
-  const clientNav = [
-    { label: "Dashboard", href: "/clienthomepage" },
-    { label: "My Jobs", href: "/my-jobs" },
-    { label: "Messages", href: "/clientmessages" },
-    { label: "Contracts", href: "/contracts" },
-  ];
 
   useEffect(() => {
     fetchJobAndApplicants();
@@ -161,7 +155,7 @@ const JobApplicationsPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header navItems={clientNav} />
+      <Header navItems={CLIENT_NAV_ITEMS} showLogout />
       
       <main className="max-w-7xl mx-auto py-8 px-6">
         {/* Job Header */}

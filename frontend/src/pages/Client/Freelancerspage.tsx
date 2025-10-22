@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { Search, Star, MapPin, DollarSign, Loader2 } from "lucide-react";
 import axiosInstance from "@/api/axios";
 import Header from "@/components/layout/Header";
 import { useAuth } from "@/context/AuthContext";
+import { CLIENT_NAV_ITEMS } from "@/constants/navigation";
 
 interface FreelancerSearchProps {
   onHireFreelancer: (freelancer: any) => void;
@@ -22,16 +23,6 @@ export default function FreelancerSearch({ onHireFreelancer }: FreelancerSearchP
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isSuggesting, setIsSuggesting] = useState(false);
-
-  const navItems = useMemo(() => {
-    if (!user) return [{ label: "Freelancer Search", href: "/freelancers" }];
-    return [
-      { label: "Freelancer Search", href: "/freelancers" },
-      { label: "Applications", href: "/applications" },
-      { label: "Messages", href: "/clientmessages" },
-      { label: "Contracts", href: "/contracts" },
-    ];
-  }, [user]);
 
   const buildAvatarSrc = (img?: string) => {
     const apiBase = axiosInstance.defaults.baseURL || "";
@@ -107,7 +98,7 @@ export default function FreelancerSearch({ onHireFreelancer }: FreelancerSearchP
 
   return (
     <div className="min-h-screen bg-background">
-      <Header navItems={navItems} showLogout />
+      <Header navItems={CLIENT_NAV_ITEMS} showLogout />
       <div className="max-w-7xl mx-auto px-6 space-y-6">
       <div className="flex items-center space-x-2 mt-6 mb-2">
         <div className="relative flex-1">

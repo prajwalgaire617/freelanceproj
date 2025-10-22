@@ -1,17 +1,12 @@
 import Header from "@/components/layout/Header";
 import { MessagingInterface } from "@/components/messaging/MessagingInterface";
+import { CLIENT_NAV_ITEMS } from "@/constants/navigation";
 
 
 function ClientMessagePage() {
-    const clientNav = [
-        { label: "Homepage", href: "/clienthomepage" },
-        { label: "Find Jobs", href: "/jobs" },
-        { label: "Applications", href: "/applications" },
-        { label: "Profile", href: "/clientprofile" },
-    ];
     return (
         <>
-            <Header navItems={clientNav} />
+            <Header navItems={CLIENT_NAV_ITEMS} showLogout />
         <MessagingInterface />
         </>
     );

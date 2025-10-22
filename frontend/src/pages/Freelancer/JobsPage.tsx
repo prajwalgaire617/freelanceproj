@@ -521,6 +521,7 @@ import JobDetailModal from "@/components/jobsdetails/JobDetailModal";
 import { JobPagination } from "@/components/pagination/pagination";
 import { FilterSidebar, type FilterState } from "@/components/jobsdetails/FilterSideBar";
 import { useNotifications } from "@/context/NotificationContext";
+import { FREELANCER_NAV_ITEMS } from "@/constants/navigation";
 
 import type { JobPost } from "@/type/job/jobpost";
 
@@ -548,13 +549,6 @@ const JobsPage: React.FC = () => {
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const token = localStorage.getItem("token");
-
-  const freelancerNav = [
-    { label: "HomePage",href: "/freelancerhomepage" },
-    { label: "Applications", href: "/applications" },
-    { label: "Messages", href: "/messages" },
-    { label: "Contracts", href: "/contracts" },
-  ];
 
   const fetchJobs = async () => {
     try {
@@ -620,7 +614,7 @@ const JobsPage: React.FC = () => {
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
-      <Header navItems={freelancerNav} />
+      <Header navItems={FREELANCER_NAV_ITEMS} showLogout />
 
       <div className="bg-gradient-to-b from-muted/30 to-background border-b">
         <div className="container mx-auto px-4 py-8 md:py-12">

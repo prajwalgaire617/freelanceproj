@@ -19,7 +19,7 @@
 // export default Header;
 
 import React, { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { NovuInbox } from "../novu-inbox";
 import {
@@ -49,6 +49,7 @@ const Header: React.FC<HeaderProps> = ({ navItems, showLogout }) => {
   const { user, logout, logoutAll } = useAuth();
   const [connects, setConnects] = useState<number | null>(null);
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     const fetchMe = async () => {
@@ -95,15 +96,22 @@ const Header: React.FC<HeaderProps> = ({ navItems, showLogout }) => {
         </button>
 
         <nav className="hidden md:flex gap-6 text-sm items-center">
-          {navItems.map((item) => (
-            <Link
-              key={item.href}
-              to={item.href}
-              className="hover:text-primary transition-colors"
-            >
-              {item.label}
-            </Link>
-          ))}
+          {navItems.map((item) => {
+            const isActive = location.pathname === item.href;
+            return (
+              <Link
+                key={item.href}
+                to={item.href}
+                className={`transition-colors font-medium ${
+                  isActive 
+                    ? "text-primary border-b-2 border-primary pb-1" 
+                    : "text-muted-foreground hover:text-primary"
+                }`}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
           
           {/* Notifications */}
           {user && (

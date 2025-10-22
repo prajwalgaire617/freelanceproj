@@ -4,20 +4,13 @@ import Footer from "@/components/layout/Footer";
 import Header from "@/components/layout/Header";
 import HeroSection from "@/components/layout/HeroSection";
 import HowItWorksSection from "@/components/layout/HowItWorksSection";
+import { FREELANCER_NAV_ITEMS } from "@/constants/navigation";
 
 // Main App Component
 function Homepage() {
-  const freelancerNav = [
-   
-    { label: "Find Jobs", href: "/jobs" },
-    { label: "Applications", href: "/applications" },
-    { label: "Contracts", href: "/contracts" },
-    { label: "Messages", href: "/messages" },
-    { label: "Profile", href: "/freelancerprofile" },
-  ];
   return (
     <div className="min-h-screen bg-background text-foreground transition-colors duration-200">
-      <Header navItems={freelancerNav} showLogout />
+      <Header navItems={FREELANCER_NAV_ITEMS} showLogout />
       <HeroSection />
       <CategoriesSection />
       <JobsSection />

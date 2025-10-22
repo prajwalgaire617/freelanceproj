@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Loader2, MapPin, Star, Briefcase } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { CLIENT_NAV_ITEMS } from "@/constants/navigation";
 
 const FreelancerProfilePage: React.FC = () => {
   const { id } = useParams();
@@ -18,19 +19,6 @@ const FreelancerProfilePage: React.FC = () => {
   const [freelancer, setFreelancer] = useState<any | null>(null);
   const [stats, setStats] = useState<any | null>(null);
   const { user } = useAuth();
-
-  const navItems = useMemo(() => {
-    if (!user) {
-      return [{ label: "Freelancer Search", href: "/freelancers" }];
-    }
-    // Default client nav for authenticated users
-    return [
-      { label: "Freelancer Search", href: "/freelancers" },
-      { label: "Applications", href: "/applications" },
-      { label: "Messages", href: "/clientmessages" },
-      { label: "Contracts", href: "/contracts" },
-    ];
-  }, [user]);
 
   const buildServerUrl = (p?: string) => {
     const apiBase = axiosInstance.defaults.baseURL || "";
@@ -72,7 +60,7 @@ const FreelancerProfilePage: React.FC = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
-        <Header navItems={navItems} showLogout />
+        <Header navItems={CLIENT_NAV_ITEMS} showLogout />
         <div className="container mx-auto px-4 py-16 flex items-center justify-center text-muted-foreground">
           <Loader2 className="h-5 w-5 mr-2 animate-spin" /> Loading profile...
         </div>
@@ -83,7 +71,7 @@ const FreelancerProfilePage: React.FC = () => {
   if (error || !freelancer) {
     return (
       <div className="min-h-screen bg-background">
-        <Header navItems={navItems} showLogout />
+        <Header navItems={CLIENT_NAV_ITEMS} showLogout />
         <div className="container mx-auto px-4 py-16 text-center">
           <p className="text-red-600 mb-4">{error || "Profile not found"}</p>
           <Button variant="outline" onClick={() => navigate(-1)}>Go Back</Button>
@@ -126,7 +114,7 @@ const FreelancerProfilePage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header navItems={navItems} showLogout />
+      <Header navItems={CLIENT_NAV_ITEMS} showLogout />
 
       <section className="border-b bg-card">
         <div className="max-w-6xl mx-auto px-6 py-8">
