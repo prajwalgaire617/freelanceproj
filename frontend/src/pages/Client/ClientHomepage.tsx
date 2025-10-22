@@ -97,14 +97,8 @@ export default function ClientDashboard() {
 
   return (
     <div className="min-h-screen bg-background">
-        {/* Header */}
-      <div className=" flex justify-between">
+      {/* Header */}
       <Header navItems={CLIENT_NAV_ITEMS} showLogout />
-       <Button onClick={() => setShowJobPostForm(true)} className=" mt-2 mr-2">
-            <Plus className="w-4 h-4 mr-1" />
-            Post a Job
-          </Button>
-          </div>
 
       {/* Hero Section */}
       <section className="py-16 text-center bg-gradient-to-br from-primary/5 to-transparent">
@@ -113,7 +107,7 @@ export default function ClientDashboard() {
           <p className="text-muted-foreground mb-8 max-w-2xl mx-auto">
             Connect with thousands of talented professionals ready to bring your projects to life
           </p>
-          <div className="flex justify-center">
+          <div className="flex justify-center gap-3 flex-wrap">
             <div className="flex w-full max-w-md items-center space-x-2">
               <Input 
                 placeholder="Search for skills, designers, developers..." 
@@ -123,6 +117,10 @@ export default function ClientDashboard() {
                 <Search className="w-4 h-4" />
               </Button>
             </div>
+            <Button onClick={() => setShowJobPostForm(true)} size="lg" className="shadow-lg">
+              <Plus className="w-4 h-4 mr-2" />
+              Post a Job
+            </Button>
           </div>
         </div>
       </section>

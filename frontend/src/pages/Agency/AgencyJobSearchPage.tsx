@@ -122,7 +122,7 @@ export default function AgencyJobSearchPage() {
     navigate(`/agency/jobs/${jobId}/apply`);
   };
 
-  if (!user || user.userType !== 'agency') {
+  if (!user || (user as any).userType !== 'agency') {
     return (
       <div className="min-h-screen bg-background">
         <Header navItems={AGENCY_NAV_ITEMS} />
@@ -167,14 +167,14 @@ export default function AgencyJobSearchPage() {
                 <div className="space-y-2">
                   <Label htmlFor="experienceLevel">Experience Level</Label>
                   <Select
-                    value={filters.experienceLevel}
-                    onValueChange={(value) => setFilters({ ...filters, experienceLevel: value })}
+                    value={filters.experienceLevel || "all"}
+                    onValueChange={(value) => setFilters({ ...filters, experienceLevel: value === "all" ? "" : value })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Any level" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Any level</SelectItem>
+                      <SelectItem value="all">Any level</SelectItem>
                       <SelectItem value="entry">Entry</SelectItem>
                       <SelectItem value="intermediate">Intermediate</SelectItem>
                       <SelectItem value="expert">Expert</SelectItem>
