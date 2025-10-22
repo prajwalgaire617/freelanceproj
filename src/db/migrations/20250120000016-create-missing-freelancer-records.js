@@ -9,8 +9,8 @@ module.exports = {
     // Find all users with userType 'freelancer' who don't have freelancer records
     const usersWithoutFreelancerRecords = await queryInterface.sequelize.query(`
       SELECT u.id, u.email, u.firstName, u.lastName, u.userType
-      FROM Users u
-      LEFT JOIN Freelancers f ON u.id = f.userId
+      FROM users u
+      LEFT JOIN freelancers f ON u.id = f.userId
       WHERE u.userType = 'freelancer' AND f.id IS NULL
     `, {
       type: Sequelize.QueryTypes.SELECT
@@ -39,7 +39,7 @@ module.exports = {
       updatedAt: new Date()
     }));
 
-    await queryInterface.bulkInsert('Freelancers', freelancerRecords);
+  await queryInterface.bulkInsert('freelancers', freelancerRecords);
 
     console.log(`✅ Created ${freelancerRecords.length} freelancer records`);
   },
@@ -49,7 +49,7 @@ module.exports = {
 
     // Remove freelancer records that were created by this migration
     await queryInterface.sequelize.query(`
-      DELETE FROM Freelancers 
+      DELETE FROM freelancers 
       WHERE shortBio = 'Freelancer profile created via migration'
     `);
 

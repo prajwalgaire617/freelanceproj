@@ -60,7 +60,7 @@ module.exports = (sequelize, DataTypes) => {
                 type: DataTypes.INTEGER,
                 allowNull: true,
                 references: {
-                    model: 'Freelancers',
+                    model: 'freelancers',
                     key: 'id',
                 },
             },
@@ -68,7 +68,7 @@ module.exports = (sequelize, DataTypes) => {
                 type: DataTypes.INTEGER,
                 allowNull: false,
                 references: {
-                    model: 'Organizations',
+                    model: 'organizations',
                     key: 'id',
                 },
             },
@@ -162,7 +162,7 @@ module.exports = (sequelize, DataTypes) => {
                 type: DataTypes.INTEGER,
                 allowNull: true,
                 references: {
-                    model: 'Users',
+                    model: 'users',
                     key: 'id',
                 },
             },
@@ -170,7 +170,7 @@ module.exports = (sequelize, DataTypes) => {
                 type: DataTypes.INTEGER,
                 allowNull: true,
                 references: {
-                    model: 'Agencies',
+                    model: 'agencies',
                     key: 'id',
                 },
             },
@@ -178,7 +178,7 @@ module.exports = (sequelize, DataTypes) => {
                 type: DataTypes.INTEGER,
                 allowNull: true,
                 references: {
-                    model: 'JobApplications',
+                    model: 'job_applications',
                     key: 'id',
                 },
             },

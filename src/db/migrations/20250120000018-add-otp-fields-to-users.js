@@ -2,44 +2,44 @@
 
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.addColumn('Users', 'emailVerificationOTP', {
+    await queryInterface.addColumn('users', 'emailVerificationOTP', {
       type: Sequelize.STRING,
       allowNull: true
     });
 
-    await queryInterface.addColumn('Users', 'emailVerificationOTPExpires', {
+    await queryInterface.addColumn('users', 'emailVerificationOTPExpires', {
       type: Sequelize.DATE,
       allowNull: true
     });
 
-    await queryInterface.addColumn('Users', 'passwordResetOTP', {
+    await queryInterface.addColumn('users', 'passwordResetOTP', {
       type: Sequelize.STRING,
       allowNull: true
     });
 
-    await queryInterface.addColumn('Users', 'passwordResetOTPExpires', {
+    await queryInterface.addColumn('users', 'passwordResetOTPExpires', {
       type: Sequelize.DATE,
       allowNull: true
     });
 
-    await queryInterface.addColumn('Users', 'otpAttempts', {
+    await queryInterface.addColumn('users', 'otpAttempts', {
       type: Sequelize.INTEGER,
       defaultValue: 0
     });
 
-    await queryInterface.addColumn('Users', 'otpLastAttempt', {
+    await queryInterface.addColumn('users', 'otpLastAttempt', {
       type: Sequelize.DATE,
       allowNull: true
     });
   },
 
   async down(queryInterface, Sequelize) {
-    await queryInterface.removeColumn('Users', 'emailVerificationOTP');
-    await queryInterface.removeColumn('Users', 'emailVerificationOTPExpires');
-    await queryInterface.removeColumn('Users', 'passwordResetOTP');
-    await queryInterface.removeColumn('Users', 'passwordResetOTPExpires');
-    await queryInterface.removeColumn('Users', 'otpAttempts');
-    await queryInterface.removeColumn('Users', 'otpLastAttempt');
+    await queryInterface.removeColumn('users', 'emailVerificationOTP');
+    await queryInterface.removeColumn('users', 'emailVerificationOTPExpires');
+    await queryInterface.removeColumn('users', 'passwordResetOTP');
+    await queryInterface.removeColumn('users', 'passwordResetOTPExpires');
+    await queryInterface.removeColumn('users', 'otpAttempts');
+    await queryInterface.removeColumn('users', 'otpLastAttempt');
   }
 };
 

@@ -3,7 +3,7 @@
 module.exports = {
   async up(queryInterface, Sequelize) {
     // hourlyRate and availability
-    const table = 'Users';
+    const table = 'users';
     const qi = queryInterface;
 
     // Add column helper: only add if not exists to be idempotent on some engines
@@ -40,9 +40,9 @@ module.exports = {
   },
 
   async down(queryInterface, Sequelize) {
-    await queryInterface.removeColumn('Users', 'hourlyRate');
-    await queryInterface.removeColumn('Users', 'availability');
-    await queryInterface.removeColumn('Users', 'skills');
-    await queryInterface.removeColumn('Users', 'portfolioItems');
+    await queryInterface.removeColumn('users', 'hourlyRate');
+    await queryInterface.removeColumn('users', 'availability');
+    await queryInterface.removeColumn('users', 'skills');
+    await queryInterface.removeColumn('users', 'portfolioItems');
   }
 };

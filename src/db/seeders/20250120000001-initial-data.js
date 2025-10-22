@@ -5,7 +5,7 @@ const { v4: uuidv4 } = require('uuid');
 module.exports = {
   async up(queryInterface, Sequelize) {
     // Create default organization
-    await queryInterface.bulkInsert('Organizations', [{
+    await queryInterface.bulkInsert('organizations', [{
       uuid: uuidv4(),
       companyName: 'WorkLab Default Organization',
       email: 'admin@worklab.com',
@@ -53,11 +53,11 @@ module.exports = {
       }
     ];
 
-    await queryInterface.bulkInsert('Users', users, {});
+  await queryInterface.bulkInsert('users', users, {});
 
     // Get the inserted user IDs
     const insertedUsers = await queryInterface.sequelize.query(
-      'SELECT id, email FROM Users WHERE email IN (?, ?, ?)',
+      'SELECT id, email FROM users WHERE email IN (?, ?, ?)',
       {
         replacements: ['john@example.com', 'jane@example.com', 'prajwal@example.com'],
         type: Sequelize.QueryTypes.SELECT
@@ -101,7 +101,7 @@ module.exports = {
       }
     ];
 
-    await queryInterface.bulkInsert('Freelancers', freelancers, {});
+  await queryInterface.bulkInsert('freelancers', freelancers, {});
 
     // Create a sample job post
     const jobPosts = [
@@ -130,8 +130,8 @@ module.exports = {
   async down(queryInterface, Sequelize) {
     // Remove all test data
     await queryInterface.bulkDelete('job_posts', null, {});
-    await queryInterface.bulkDelete('Freelancers', null, {});
-    await queryInterface.bulkDelete('Users', null, {});
-    await queryInterface.bulkDelete('Organizations', null, {});
+    await queryInterface.bulkDelete('freelancers', null, {});
+    await queryInterface.bulkDelete('users', null, {});
+    await queryInterface.bulkDelete('organizations', null, {});
   }
 };

@@ -11,6 +11,7 @@ const path = require('path');
 const http = require('http');
 require('dotenv').config();
 
+
 // Import configurations
 const swaggerSpec = require('./config/swagger');
 const { connectDB } = require('./db/config/database');
@@ -36,7 +37,10 @@ const centrifugoRoutes = require('./routes/centrifugoRoutes');
 // Initialize Express app
 const app = express();
 const server = http.createServer(app);
-const port = process.env.PORT || 3001;
+const port = process.env.PORT || 3000;
+const requestLogger = require('./middleware/logrequest');
+
+app.use(requestLogger);
 
 // Connect to database
 connectDB();
