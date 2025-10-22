@@ -440,6 +440,146 @@ const getAgencyStatistics = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc    Search freelancers
+// @route   GET /api/agencies/freelancers/search
+// @access  Private (Agency)
+const searchFreelancers = asyncHandler(async (req, res) => {
+  const {
+    searchTerm,
+    skills = [],
+    hourlyRateMin,
+    hourlyRateMax,
+    experienceLevel,
+    location,
+    availability,
+    page = 1,
+    limit = 10
+  } = req.query;
+
+  const { Op } = db.Sequelize;
+  const offset = (page - 1) * limit;
+  const whereClause = {
+    visibility: 'public'
+  };
+
+  // Search by name, expertise, or shortBio
+  if (searchTerm) {
+    whereClause[Op.or] = [
+      { firstName: { [Op.like]: `%${searchTerm}%` } },
+      { lastName: { [Op.like]: `%${searchTerm}%` } },
+      { expertise: { [Op.like]: `%${searchTerm}%` } },
+      { shortBio: { [Op.like]: `%${searchTerm}%` } }
+    ];
+  }
+
+  // Filter by location
+  if (location) {
+    whereClause[Op.or] = [
+      { city: { [Op.like]: `%${location}%` } },
+      { country: { [Op.like]: `%${location}%` } }
+    ];
+  }
+
+  // Filter by skills in category
+  if (skills.length > 0) {
+    whereClause.category = {
+      [Op.contains]: skills
+    };
+  }
+
+  const { count, rows: freelancers } = await db.Freelancer.findAndCountAll({
+    where: whereClause,
+    include: [
+      {
+        model: db.User,
+        as: 'freelancerUser',
+        attributes: ['id', 'email', 'firstName', 'lastName', 'profileImage', 'connectBalance']
+      }
+    ],
+    order: [['createdAt', 'DESC']],
+    limit: parseInt(limit),
+    offset: parseInt(offset)
+  });
+
+  // Attach simple platform stats to each freelancer
+  await Promise.all(
+    freelancers.map(async (f) => {
+      try {
+        const fid = f.id;
+        const [completedContracts, activeContracts, totalContracts] = await Promise.all([
+          db.Contract.count({ where: { freelancerId: fid, contractStatus: 'completed' } }),
+          db.Contract.count({ where: { freelancerId: fid, contractStatus: 'active' } }),
+          db.Contract.count({ where: { freelancerId: fid } }),
+        ]);
+        f.dataValues.stats = {
+          completedContracts,
+          activeContracts,
+          totalContracts,
+          avgRating: typeof f.dataValues.avgRating === 'number' ? f.dataValues.avgRating : 0,
+          reviewsCount: typeof f.dataValues.reviewsCount === 'number' ? f.dataValues.reviewsCount : 0,
+        };
+      } catch {}
+    })
+  );
+
+  const totalPages = Math.ceil(count / limit);
+
+  res.json({
+    success: true,
+    freelancers,
+    pagination: {
+      currentPage: parseInt(page),
+      totalPages,
+      totalFreelancers: count,
+      hasNext: page < totalPages,
+      hasPrev: page > 1
+    }
+  });
+});
+
+// @desc    Get freelancer profile details
+// @route   GET /api/agencies/freelancers/:id
+// @access  Private (Agency)
+const getFreelancerProfile = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const freelancer = await db.Freelancer.findByPk(id, {
+    include: [
+      {
+        model: db.User,
+        as: 'freelancerUser',
+        attributes: ['id', 'email', 'firstName', 'lastName', 'profileImage', 'createdAt']
+      }
+    ]
+  });
+
+  if (!freelancer) {
+    return res.status(404).json({ 
+      success: false,
+      error: 'Freelancer not found' 
+    });
+  }
+
+  // Get freelancer stats
+  const [completedContracts, activeContracts, totalContracts] = await Promise.all([
+    db.Contract.count({ where: { freelancerId: freelancer.id, contractStatus: 'completed' } }),
+    db.Contract.count({ where: { freelancerId: freelancer.id, contractStatus: 'active' } }),
+    db.Contract.count({ where: { freelancerId: freelancer.id } }),
+  ]);
+
+  res.json({
+    success: true,
+    freelancer,
+    stats: {
+      completedContracts,
+      activeContracts,
+      totalContracts,
+      avgRating: typeof freelancer.avgRating === 'number' ? freelancer.avgRating : 0,
+      reviewsCount: typeof freelancer.reviewsCount === 'number' ? freelancer.reviewsCount : 0,
+    }
+  });
+});
+
 module.exports = {
   createAgencyProfile,
   getAgencyProfile,
@@ -452,4 +592,6 @@ module.exports = {
   removeFreelancerFromAgency,
   getAgencyJobs,
   getAgencyStatistics,
+  searchFreelancers,
+  getFreelancerProfile,
 };

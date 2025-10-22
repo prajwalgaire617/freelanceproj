@@ -41,12 +41,34 @@ const sendMessage = asyncHandler(async (req, res) => {
   }
 
   if (jobApplicationId) {
-    const jobApplication = await db.JobApplication.findByPk(jobApplicationId);
+    const jobApplication = await db.JobApplication.findByPk(jobApplicationId, {
+      include: [{ model: db.JobPost, as: 'jobPost' }]
+    });
     if (!jobApplication) {
       return res.status(404).json({ error: 'Job application not found' });
     }
-    if (jobApplication.userId !== senderId && jobApplication.jobPost.clientId !== senderId) {
+    
+    // Check if user is part of this application (poster or applicant)
+    const isApplicant = jobApplication.userId === senderId;
+    const isPoster = jobApplication.jobPost.clientId === senderId;
+    
+    if (!isApplicant && !isPoster) {
       return res.status(403).json({ error: 'Not authorized to send message for this application' });
+    }
+    
+    // POSTER-FIRST MESSAGING RULE: Check if this is the first message
+    const existingMessages = await db.Message.count({
+      where: { jobApplicationId }
+    });
+    
+    if (existingMessages === 0) {
+      // This is the first message - only the poster (job owner) can send it
+      if (!isPoster) {
+        return res.status(403).json({ 
+          error: 'Only the job poster can initiate conversation with applicants',
+          message: 'Please wait for the job poster to contact you first'
+        });
+      }
     }
   }
 

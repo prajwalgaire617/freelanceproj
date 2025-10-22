@@ -32,8 +32,9 @@ const searchService = require('../services/search/opensearchService');
  */
 
 // @desc    Create a new job post
+// @desc    Create job post
 // @route   POST /api/jobs
-// @access  Private (Client only)
+// @access  Private (Client or Agency)
 const createJobPost = asyncHandler(async (req, res) => {
   const {
     title,
@@ -49,10 +50,12 @@ const createJobPost = asyncHandler(async (req, res) => {
     status = 'draft',
     connectRequired = 0,
     isFeatured = false,
-    isUrgent = false
+    isUrgent = false,
+    hireType = 'both'
   } = req.body;
 
   const clientId = req.user.id;
+  const userType = req.user.userType;
 
   // Validate required fields
   if (!title || !description || !budget || !budgetType) {
@@ -61,6 +64,18 @@ const createJobPost = asyncHandler(async (req, res) => {
       message: 'Title, description, budget, and budgetType are required'
     });
   }
+
+  // Validate hireType
+  if (!['freelancer', 'agency', 'both'].includes(hireType)) {
+    return res.status(400).json({
+      success: false,
+      message: 'hireType must be one of: freelancer, agency, both'
+    });
+  }
+
+  // If agency is posting a job, hireType should be 'freelancer' (agencies hire freelancers)
+  // If client is posting, they can specify any hireType
+  const finalHireType = userType === 'agency' ? 'freelancer' : hireType;
 
   // Create job post
   const job = await JobPost.create({
@@ -78,6 +93,7 @@ const createJobPost = asyncHandler(async (req, res) => {
     connectRequired,
     isFeatured,
     isUrgent,
+    hireType: finalHireType,
     clientId,
     isPublic: status === 'active'
   });
@@ -436,8 +452,9 @@ const getUrgentJobs = asyncHandler(async (req, res) => {
 });
 
 // @desc    Get jobs posted by the authenticated client
+// @desc    Get current user's posted jobs
 // @route   GET /api/jobs/my-jobs
-// @access  Private (Client only)
+// @access  Private (Client or Agency)
 const getMyJobs = asyncHandler(async (req, res) => {
   const { page = 1, limit = 10, status } = req.query;
   const clientId = req.user.id;

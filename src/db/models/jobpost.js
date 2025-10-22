@@ -127,6 +127,12 @@ module.exports = (sequelize, DataTypes) => {
     isUrgent: {
       type: DataTypes.BOOLEAN,
       defaultValue: false
+    },
+    // Hire type - who can apply (freelancer, agency, or both)
+    hireType: {
+      type: DataTypes.ENUM('freelancer', 'agency', 'both'),
+      defaultValue: 'both',
+      allowNull: false
     }
   }, {
     sequelize,

@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { authenticateToken, requireRole } = require('../middleware/auth');
+const { authenticateToken, requireRole, requireClientOrAgency } = require('../middleware/auth');
 const jobPostController = require('../controllers/jobPostController');
 /**
  * @swagger
@@ -213,9 +213,9 @@ router.get('/suggest', jobPostController.suggestJobs);
  *                     hasPrev:
  *                       type: boolean
  *       403:
- *         description: Access denied - only clients can access this endpoint
+ *         description: Access denied - only clients and agencies can access this endpoint
  */
-router.get('/my-jobs', authenticateToken, requireRole('client'), jobPostController.getMyJobs);
+router.get('/my-jobs', authenticateToken, requireClientOrAgency, jobPostController.getMyJobs);
 
 /**
  * @swagger
@@ -432,6 +432,6 @@ router.delete('/:id', authenticateToken, requireRole('client'), jobPostControlle
  *       404:
  *         description: Job not found or access denied
  */
-router.get('/:id/stats', authenticateToken, requireRole('client'), jobPostController.getJobStats);
+router.get('/:id/stats', authenticateToken, requireClientOrAgency, jobPostController.getJobStats);
 
 module.exports = router;

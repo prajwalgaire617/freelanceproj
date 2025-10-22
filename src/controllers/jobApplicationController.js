@@ -15,6 +15,12 @@ const applyForJob = asyncHandler(async (req, res) => {
   const { jobPostId, coverLetter, proposedRate, proposedTimeline, additionalInfo, attachments } = req.body;
   const userId = req.userId;
 
+  // Get user details to check user type
+  const user = await db.User.findByPk(userId);
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+
   // Check if job post exists and is active
   const jobPost = await db.JobPost.findByPk(jobPostId, {
     include: [
@@ -31,6 +37,33 @@ const applyForJob = asyncHandler(async (req, res) => {
 
   if (jobPost.status !== 'active') {
     return res.status(400).json({ error: 'Job post is not active' });
+  }
+
+  // CHECK HIRETYPE PREFERENCE
+  // Validate if applicant type matches job's hireType preference
+  const applicantType = user.userType; // 'freelancer', 'agency', or 'client'
+  const jobHireType = jobPost.hireType || 'both'; // Default to 'both' if not set
+  
+  if (jobHireType === 'freelancer' && applicantType !== 'freelancer') {
+    return res.status(403).json({ 
+      error: 'This job is only open to freelancers',
+      message: 'The job poster is only accepting applications from freelancers'
+    });
+  }
+  
+  if (jobHireType === 'agency' && applicantType !== 'agency') {
+    return res.status(403).json({ 
+      error: 'This job is only open to agencies',
+      message: 'The job poster is only accepting applications from agencies'
+    });
+  }
+  
+  // Note: Agencies should NOT be able to apply to other agency's posts
+  if (applicantType === 'agency' && jobPost.client.userType === 'agency') {
+    return res.status(403).json({ 
+      error: 'Agencies cannot apply to other agency job posts',
+      message: 'Agencies can only apply to client job posts'
+    });
   }
 
   // Check if application deadline has passed
