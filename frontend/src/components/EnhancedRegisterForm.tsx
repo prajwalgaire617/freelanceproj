@@ -22,7 +22,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/context/AuthContext";
-import axios from "axios";
+import axiosInstance from "@/api/axios";
+import OAuthButtons from "@/components/auth/OAuthButtons";
 import { Plus, X, Upload, Camera, User } from "lucide-react";
 
 interface Experience {
@@ -102,9 +103,11 @@ export const EnhancedRegisterForm: React.FC = () => {
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState<string>("");
+  const [success] = useState<string>("");
   const [currentStep, setCurrentStep] = useState(1);
   const totalSteps = 3;
+  const [oauthLoading, setOauthLoading] = useState(false);
+  const [oauthConfig, setOauthConfig] = useState({ googleEnabled: false, facebookEnabled: false, appleEnabled: false });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { id, value } = e.target;
@@ -247,7 +250,7 @@ export const EnhancedRegisterForm: React.FC = () => {
         submitData.append('companyWebsite', formData.companyWebsite);
       }
 
-      const response = await axios.post("http://localhost:3000/api/auth/register", submitData, {
+      const response = await axiosInstance.post('/auth/register', submitData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -261,13 +264,7 @@ export const EnhancedRegisterForm: React.FC = () => {
         expiresAt
       };
 
-      // Check if email verification is required
-      if (response.data.requiresVerification) {
-        // Handle OTP verification flow
-        setSuccess("Registration successful! Please check your email for verification OTP.");
-        return;
-      }
-
+      // Email verification disabled: proceed to login immediately
       login(user, token, sessionData);
 
       // Redirect based on role
@@ -283,6 +280,42 @@ export const EnhancedRegisterForm: React.FC = () => {
       setLoading(false);
     }
   };
+
+  // OAuth handlers
+  const handleGoogleLogin = () => {
+    setOauthLoading(true);
+    const base = axiosInstance.defaults.baseURL || '';
+    window.location.href = `${base}/auth/google`;
+  };
+
+  const handleFacebookLogin = () => {
+    setOauthLoading(true);
+    const base = axiosInstance.defaults.baseURL || '';
+    window.location.href = `${base}/auth/facebook`;
+  };
+
+  const handleAppleLogin = () => {
+    setOauthLoading(true);
+    const base = axiosInstance.defaults.baseURL || '';
+    window.location.href = `${base}/auth/apple`;
+  };
+
+  // Fetch OAuth configuration on mount
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const res = await axiosInstance.get('/auth/oauth-urls');
+        const cfg = res.data?.data?.configured;
+        if (cfg) {
+          setOauthConfig({
+            googleEnabled: !!cfg.google,
+            facebookEnabled: !!cfg.facebook,
+            appleEnabled: !!cfg.apple,
+          });
+        }
+      } catch {}
+    })();
+  }, []);
 
   const renderStep1 = () => (
     <div className="space-y-6">
@@ -648,6 +681,20 @@ export const EnhancedRegisterForm: React.FC = () => {
           </CardHeader>
 
           <CardContent>
+            {/* OAuth buttons at top */}
+            <div className="mb-6">
+              <OAuthButtons
+                onGoogleLogin={handleGoogleLogin}
+                onFacebookLogin={handleFacebookLogin}
+                onAppleLogin={handleAppleLogin}
+                loading={oauthLoading}
+                disabled={loading}
+                googleEnabled={oauthConfig.googleEnabled}
+                facebookEnabled={false}
+                appleEnabled={false}
+              />
+            </div>
+
             {/* Progress Bar */}
             <div className="mb-8">
               <div className="flex items-center justify-between mb-2">

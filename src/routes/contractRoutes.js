@@ -29,6 +29,16 @@ router.get('/:contractId', authenticateToken, validateContractId, requireContrac
 // @access  Private
 router.put('/:contractId/accept', authenticateToken, validateContractId, requireContractAccess, contractController.acceptContract);
 
+// @route   PUT /api/contracts/:contractId/decline
+// @desc    Decline contract
+// @access  Private
+router.put('/:contractId/decline', authenticateToken, validateContractId, requireContractAccess, contractController.declineContract);
+
+// @route   DELETE /api/contracts/:contractId
+// @desc    Delete contract
+// @access  Private
+router.delete('/:contractId', authenticateToken, validateContractId, requireContractAccess, contractController.deleteContract);
+
 // @route   POST /api/contracts/:contractId/request-payment
 // @desc    Request payment
 // @access  Private

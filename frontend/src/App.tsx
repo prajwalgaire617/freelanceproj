@@ -47,12 +47,14 @@ import AgencySearchFreelancersPage from "./pages/Agency/AgencySearchFreelancersP
 import AgencyFreelancerProfilePage from "./pages/Agency/AgencyFreelancerProfilePage";
 import AgencyJobSearchPage from "./pages/Agency/AgencyJobSearchPage";
 import AgencyMessagePage from "./pages/Agency/AgencyMessagePage";
+import GuestRoute from "./components/GuestRoute";
 
 function App() {
+  const rtEnabled = (import.meta as any).env?.VITE_CENTRIFUGO_ENABLED === 'true';
   return (
     <AuthProvider>
        <NotificationProvider> 
-        <RealTimeNotifications /> 
+        {rtEnabled && <RealTimeNotifications />} 
         <Routes>
 
           <Route path="/" element={<LandingPage />} />
@@ -70,8 +72,8 @@ function App() {
           <Route path="/how-to-find-work" element={<HowToFindWork />} />
           <Route path="/enterprise" element={<Enterprise />} />
           <Route path="/reviews" element={<Reviews />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/signup" element={<SignUpPage />} />
+          <Route path="/login" element={<GuestRoute element={<LoginPage />} />} />
+          <Route path="/signup" element={<GuestRoute element={<SignUpPage />} />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/auth/callback" element={<OAuthCallback />} />
           <Route path="/messages" element={<MessagePage />} />
@@ -100,7 +102,7 @@ function App() {
             element={<ProtectedRoute element={<ClientHomepage />} allowedRoles={["client"]} />}
           />
           <Route
-            path="/applications"
+            path="/client/applications"
             element={<ProtectedRoute element={<ClientApplicationsList />} allowedRoles={["client"]} />}
           />
           <Route

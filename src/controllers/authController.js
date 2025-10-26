@@ -152,9 +152,7 @@ const register = asyncHandler(async (req, res) => {
     return res.status(400).json({ error: 'User already exists' });
   }
 
-  // Generate OTP for email verification
-  const emailVerificationOTP = emailService.generateOTP();
-  const emailVerificationOTPExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+  // Email verification disabled: no OTP generation
 
   // Handle profile image upload
   let profileImagePath = null;
@@ -177,7 +175,7 @@ const register = asyncHandler(async (req, res) => {
     return res.status(400).json({ error: 'Invalid JSON format for experiences or payment options' });
   }
 
-  // Create user
+  // Create user (mark email as verified and skip OTP fields)
   const user = await db.User.create({
     email,
     password,
@@ -191,8 +189,7 @@ const register = asyncHandler(async (req, res) => {
     companyName,
     companyWebsite,
     profileImage: profileImagePath,
-    emailVerificationOTP,
-    emailVerificationOTPExpires,
+    isEmailVerified: true,
     connectBalance: 20, // Give 20 free connects on signup
   });
 
@@ -252,12 +249,7 @@ const register = asyncHandler(async (req, res) => {
     }
   });
 
-  // Send verification OTP email
-  try {
-    await emailService.sendVerificationOTP(email, emailVerificationOTP, firstName);
-  } catch (error) {
-    console.error('Error sending verification OTP:', error);
-  }
+  // Email verification disabled: do not send OTP email
 
   // Create session for new user
   const userAgent = req.get('User-Agent') || '';
@@ -270,7 +262,7 @@ const register = asyncHandler(async (req, res) => {
   );
 
   res.status(201).json({
-    message: 'User registered successfully. You received 20 free connects! Please check your email for the verification OTP.',
+    message: 'User registered successfully. You received 20 free connects! You are now logged in.',
     token: sessionData.token,
     sessionId: sessionData.sessionId,
     expiresAt: sessionData.expiresAt,
@@ -284,7 +276,7 @@ const register = asyncHandler(async (req, res) => {
       isEmailVerified: user.isEmailVerified,
       connectBalance: user.connectBalance,
     },
-    requiresVerification: true,
+    requiresVerification: false,
   });
 });
 

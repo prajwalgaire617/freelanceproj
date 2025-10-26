@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
+import centrifugoService from "@/services/centrifugo";
 
 interface User {
   id: string;
@@ -52,12 +53,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
-  const login = (userData: User, token: string, sessionData: SessionData) => {
+  const login = async (userData: User, token: string, sessionData: SessionData) => {
     setUser(userData);
     setSessionData(sessionData);
     localStorage.setItem("user", JSON.stringify(userData));
     localStorage.setItem("token", token);
     localStorage.setItem("sessionData", JSON.stringify(sessionData));
+
+    // Subscribe user to Novu notifications
+    try {
+      await fetch("/api/novu/subscribe", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      });
+      console.log("✅ User subscribed to Novu notifications");
+    } catch (error) {
+      console.error("❌ Failed to subscribe to Novu:", error);
+    }
+    // }
   };
 
   const logout = async () => {
@@ -76,6 +92,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       console.error("Error during logout:", error);
     } finally {
+      // Disconnect from Centrifugo on logout
+      console.log('🔌 Disconnecting from Centrifugo on logout');
+      centrifugoService.disconnect();
+      
       setUser(null);
       setSessionData(null);
       localStorage.removeItem("user");
@@ -100,6 +120,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       console.error("Error during logout all:", error);
     } finally {
+      // Disconnect from Centrifugo on logout all
+      console.log('🔌 Disconnecting from Centrifugo on logout all');
+      centrifugoService.disconnect();
+      
       setUser(null);
       setSessionData(null);
       localStorage.removeItem("user");

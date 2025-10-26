@@ -33,7 +33,6 @@ export function JobPostForm({ open, onClose }: JobPostFormProps) {
 
   const [skills, setSkills] = useState<string[]>([]);
   const [skillInput, setSkillInput] = useState("");
-  const token = localStorage.getItem("token"); 
 
   const addSkill = () => {
     const skill = skillInput.trim();
@@ -82,7 +81,7 @@ export function JobPostForm({ open, onClose }: JobPostFormProps) {
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-5xl w-[90vw] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="!w-[90vw] h-[92vh] !max-w-[90vw] max-h-none overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Post a New Job</DialogTitle>
         </DialogHeader>

@@ -100,7 +100,52 @@ const createContract = asyncHandler(async (req, res) => {
     ]
   });
 
-  // 🚀 Send notification to freelancer about new contract
+  // 📨 Send contract as a message in chat
+  try {
+    const contractMessage = await db.Message.create({
+      senderId: clientId,
+      receiverId: freelancerUserId,
+      content: JSON.stringify({
+        type: 'contract',
+        contractId: contractWithDetails.id,
+        workTitle: contractWithDetails.workTitle,
+        totalAmount: contractWithDetails.totalAmount,
+        contractStartDate: contractWithDetails.contractStartDate,
+        contractEndDate: contractWithDetails.contractEndDate,
+        contractStatus: contractWithDetails.contractStatus,
+        message: `Contract sent: ${contractWithDetails.workTitle}`
+      }),
+      messageType: 'contract',
+      contractId: contractWithDetails.id,
+      sentAt: new Date()
+    });
+
+    // Update conversation
+    await db.Conversation.updateWithMessage(clientId, freelancerUserId, contractMessage.id, clientId);
+
+    // Broadcast contract message to conversation channel
+    const conversationChannel = CentrifugoService.getConversationChannel(clientId, freelancerUserId);
+    await CentrifugoService.publishMessage(conversationChannel, {
+      id: contractMessage.id,
+      senderId: clientId,
+      receiverId: freelancerUserId,
+      content: contractMessage.content,
+      messageType: 'contract',
+      contractId: contractWithDetails.id,
+      sentAt: contractMessage.sentAt,
+      sender: {
+        id: contractWithDetails.client.id,
+        firstName: contractWithDetails.client.firstName,
+        lastName: contractWithDetails.client.lastName
+      }
+    });
+
+    console.log(`📨 Contract message sent to conversation:${clientId}:${freelancerUserId}`);
+  } catch (error) {
+    console.error('❌ Error sending contract message:', error);
+  }
+
+  // �🚀 Send notification to freelancer about new contract
   try {
     const userChannel = CentrifugoService.getUserChannel(freelancerUserId);
     
@@ -145,11 +190,16 @@ const createContract = asyncHandler(async (req, res) => {
 // @route   GET /api/contracts
 // @access  Private
 const getContracts = asyncHandler(async (req, res) => {
-  const { page = 1, limit = 10, status, role } = req.query;
+  const { page = 1, limit = 10, status, role, jobApplicationId } = req.query;
   const userId = req.userId;
   const offset = (parseInt(page) - 1) * parseInt(limit);
 
   let whereClause = {};
+  
+  // If filtering by job application ID
+  if (jobApplicationId) {
+    whereClause.jobApplicationId = parseInt(jobApplicationId);
+  }
   
   if (role === 'client') {
     whereClause.clientId = userId;
@@ -288,6 +338,55 @@ const acceptContract = asyncHandler(async (req, res) => {
 
   res.json({
     message: 'Contract accepted successfully. Work has started!',
+    contract
+  });
+});
+
+// @desc    Decline contract
+// @route   PUT /api/contracts/:contractId/decline
+// @access  Private
+const declineContract = asyncHandler(async (req, res) => {
+  const { contractId } = req.params;
+  const userId = req.userId;
+
+  const contract = await db.Contract.findByPk(contractId);
+
+  if (!contract) {
+    return res.status(404).json({ error: 'Contract not found' });
+  }
+
+  // Check if user is the freelancer
+  if (contract.freelancerId !== userId) {
+    const freelancer = await db.Freelancer.findByPk(contract.freelancerId);
+    if (!freelancer || freelancer.userId !== userId) {
+      return res.status(403).json({ error: 'Not authorized to decline this contract' });
+    }
+  }
+
+  if (contract.contractStatus !== 'pending' && contract.contractStatus !== 'draft') {
+    return res.status(400).json({ error: 'Contract cannot be declined in current status' });
+  }
+
+  // Update contract status to declined
+  await contract.update({
+    contractStatus: 'declined'
+  });
+
+  // If this contract is linked to a job application, update its status
+  if (contract.jobApplicationId) {
+    try {
+      await db.JobApplication.update(
+        { status: 'rejected' },
+        { where: { id: contract.jobApplicationId } }
+      );
+      console.log(`✅ Updated job application ${contract.jobApplicationId} status to 'rejected'`);
+    } catch (error) {
+      console.error('❌ Error updating job application status:', error);
+    }
+  }
+
+  res.json({
+    message: 'Contract declined',
     contract
   });
 });
@@ -550,11 +649,46 @@ const getContractStatistics = asyncHandler(async (req, res) => {
   res.json({ statistics });
 });
 
+// @desc    Delete contract
+// @route   DELETE /api/contracts/:contractId
+// @access  Private
+const deleteContract = asyncHandler(async (req, res) => {
+  const { contractId } = req.params;
+  const userId = req.userId;
+
+  const contract = await db.Contract.findByPk(contractId);
+
+  if (!contract) {
+    return res.status(404).json({ error: 'Contract not found' });
+  }
+
+  // Check if user is the client who created the contract
+  if (contract.clientId !== userId) {
+    return res.status(403).json({ error: 'You do not have permission to delete this contract' });
+  }
+
+  // Only allow deletion of draft or pending contracts
+  if (contract.contractStatus !== 'draft' && contract.contractStatus !== 'pending') {
+    return res.status(400).json({ 
+      error: 'Only draft or pending contracts can be deleted. Active contracts must be cancelled instead.' 
+    });
+  }
+
+  await contract.destroy();
+
+  res.json({ 
+    message: 'Contract deleted successfully',
+    deletedContractId: contractId 
+  });
+});
+
 module.exports = {
   createContract,
   getContracts,
   getContractDetails,
   acceptContract,
+  declineContract,
+  deleteContract,
   requestPayment,
   releasePayment,
   completeWork,

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import axiosInstance from '../../api/axios';
 
 const OAuthCallback: React.FC = () => {
   const navigate = useNavigate();
@@ -15,7 +16,7 @@ const OAuthCallback: React.FC = () => {
         const token = searchParams.get('token');
         const sessionId = searchParams.get('sessionId');
         const expiresAt = searchParams.get('expiresAt');
-        const provider = searchParams.get('provider');
+  // const provider = searchParams.get('provider');
         const error = searchParams.get('error');
 
         if (error) {
@@ -30,20 +31,12 @@ const OAuthCallback: React.FC = () => {
           return;
         }
 
-        // Get user data from the token (we need to decode it or fetch user data)
-        // For now, we'll make a request to get user data
-        const response = await fetch('/api/auth/me', {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
+        // Get user data from backend using the configured API base URL
+        // Use axios instance to ensure we hit the correct server (http://localhost:3000/api in dev)
+        const response = await axiosInstance.get('/auth/me', {
+          headers: { Authorization: `Bearer ${token}` },
         });
-
-        if (!response.ok) {
-          throw new Error('Failed to get user data');
-        }
-
-        const { user } = await response.json();
+        const { user } = response.data;
 
         // Create session data object
         const sessionData = {
@@ -51,8 +44,8 @@ const OAuthCallback: React.FC = () => {
           expiresAt
         };
 
-        // Login the user
-        login(user, token, sessionData);
+  // Login the user and persist token/session
+  login(user, token, sessionData);
 
         // Redirect based on user type
         if (user.userType === 'freelancer') {

@@ -295,7 +295,7 @@ const deleteJobPost = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Search jobs via OpenSearch
+// @desc    Search jobs via OpenSearch (fallback to DB if OpenSearch unavailable)
 // @route   GET /api/jobs/search
 // @access  Public
 const searchJobs = asyncHandler(async (req, res) => {
@@ -314,30 +314,78 @@ const searchJobs = asyncHandler(async (req, res) => {
     ? skills.split(',').map(s => s.trim()).filter(Boolean)
     : Array.isArray(skills) ? skills : [];
 
-  const result = await searchService.searchJobs({
-    q,
-    skills: skillsArr,
-    budgetMin: budgetMin != null ? Number(budgetMin) : undefined,
-    budgetMax: budgetMax != null ? Number(budgetMax) : undefined,
-    jobType,
-    experienceLevel,
-    page: Number(page),
-    limit: Number(limit),
-  });
+  try {
+    const result = await searchService.searchJobs({
+      q,
+      skills: skillsArr,
+      budgetMin: budgetMin != null ? Number(budgetMin) : undefined,
+      budgetMax: budgetMax != null ? Number(budgetMax) : undefined,
+      jobType,
+      experienceLevel,
+      page: Number(page),
+      limit: Number(limit),
+    });
 
-  const totalPages = Math.ceil(result.total / Number(limit || 10));
-
-  res.json({
-    success: true,
-    jobs: result.results,
-    pagination: {
-      currentPage: Number(page || 1),
-      totalPages,
-      totalJobs: result.total,
-      hasNext: Number(page || 1) < totalPages,
-      hasPrev: Number(page || 1) > 1
+    const totalPages = Math.ceil(result.total / Number(limit || 10));
+    return res.json({
+      success: true,
+      jobs: result.results,
+      pagination: {
+        currentPage: Number(page || 1),
+        totalPages,
+        totalJobs: result.total,
+        hasNext: Number(page || 1) < totalPages,
+        hasPrev: Number(page || 1) > 1
+      }
+    });
+  } catch (e) {
+    // Fallback: DB search over public jobs
+    const whereClause = { status: 'active', isPublic: true };
+    if (q) {
+      whereClause[Op.or] = [
+        { title: { [Op.like]: `%${q}%` } },
+        { description: { [Op.like]: `%${q}%` } },
+      ];
     }
-  });
+    if (skillsArr.length) {
+      whereClause.skills = { [Op.contains]: skillsArr };
+    }
+    if (budgetMin != null || budgetMax != null) {
+      whereClause.budget = {};
+      if (budgetMin != null) whereClause.budget[Op.gte] = Number(budgetMin);
+      if (budgetMax != null) whereClause.budget[Op.lte] = Number(budgetMax);
+    }
+    if (jobType) whereClause.budgetType = jobType;
+    if (experienceLevel) whereClause.experienceLevel = experienceLevel;
+
+    const offset = (Number(page) - 1) * Number(limit);
+    const { count, rows } = await JobPost.findAndCountAll({
+      where: whereClause,
+      include: [
+        { model: User, as: 'client', attributes: ['id', 'firstName', 'lastName', 'profileImage'] },
+      ],
+      order: [['isFeatured', 'DESC'], ['createdAt', 'DESC']],
+      limit: Number(limit),
+      offset: Number(offset),
+      distinct: true,
+      subQuery: false,
+    });
+
+    const totalPages = Math.ceil(count / Number(limit || 10));
+    return res.json({
+      success: true,
+      jobs: rows,
+      pagination: {
+        currentPage: Number(page || 1),
+        totalPages,
+        totalJobs: count,
+        hasNext: Number(page || 1) < totalPages,
+        hasPrev: Number(page || 1) > 1,
+      },
+      // optional meta for observability
+      _fallback: true,
+    });
+  }
 });
 
 // @desc    Suggest job titles for typeahead

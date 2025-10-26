@@ -1,25 +1,28 @@
 {
-  "token_hmac_secret_key": "worklab_centrifugo_secret_key_2024",
-  "admin_password": "worklab_admin_2024",
-  "admin_secret": "worklab_admin_secret_2024",
-  "api_key": "worklab_centrifugo_api_key_2024",
-  "allowed_origins": ["*"],
-  "log_level": "info",
-  "log_file": "centrifugo.log",
-  "namespaces": [
-    {
-      "name": "chat",
-      "presence": true,
-      "join_leave": true,
-      "history_size": 100,
-      "history_ttl": "24h"
-    },
-    {
-      "name": "user",
-      "presence": true,
-      "join_leave": true,
-      "history_size": 100,
-      "history_ttl": "24h"
-    }
-  ]
+  "client": {
+    "token_hmac_secret_key": "worklab_centrifugo_secret_key_2024",
+    "insecure": false
+  },
+  "admin": {
+    "enabled": true,
+    "insecure": true
+  },
+  "http_api": {
+    "enabled": true,
+    "insecure": true,
+    "key": "worklab_centrifugo_api_key_2024"
+  },
+  "http_server": {
+    "port": "8000"
+  },
+  "websocket": {
+    "enabled": true
+  },
+  "allowed_origins": ["http://localhost:5173", "http://127.0.0.1:5173"],
+  "log": {
+    "level": "info"
+  },
+  "swagger": {
+    "enabled": true
+  }
 }

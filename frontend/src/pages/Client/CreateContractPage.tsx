@@ -4,7 +4,6 @@ import axiosInstance from "@/api/axios";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import Header from "@/components/layout/Header";
@@ -12,6 +11,8 @@ import { useNotifications } from "@/context/NotificationContext";
 import { toast } from "sonner";
 import { Loader2, FileText, DollarSign, Calendar } from "lucide-react";
 import { CLIENT_NAV_ITEMS } from "@/constants/navigation";
+import { CKEditor } from "@ckeditor/ckeditor5-react";
+import ClassicEditor from "@ckeditor/ckeditor5-build-classic";
 
 const CreateContractPage: React.FC = () => {
   const navigate = useNavigate();
@@ -33,9 +34,9 @@ const CreateContractPage: React.FC = () => {
     paymentType: "fixed",
     startDate: "",
     endDate: "",
-    milestones: "",
-    terms: "",
-    deliverables: "",
+    milestonesHtml: "",
+    termsHtml: "",
+    deliverablesHtml: "",
   });
 
   useEffect(() => {
@@ -73,11 +74,45 @@ const CreateContractPage: React.FC = () => {
     }
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value
     });
+  };
+
+  const htmlToPlain = (html: string) => {
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html || '';
+    return tmp.textContent || tmp.innerText || '';
+  };
+
+  const extractListItems = (html: string) => {
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html || '', 'text/html');
+      const items = Array.from(doc.querySelectorAll('li')).map(li => li.textContent?.trim()).filter(Boolean) as string[];
+      if (items.length > 0) return items;
+      const text = (doc.body.textContent || '').split(/\n|\r/).map(s => s.trim()).filter(Boolean);
+      return text;
+    } catch {
+      const text = htmlToPlain(html).split(/\n|\r/).map(s => s.trim()).filter(Boolean);
+      return text;
+    }
+  };
+
+  const parseMilestones = (html: string) => {
+    // Try to parse as JSON objects from plain text
+    const text = htmlToPlain(html).trim();
+    if (!text) return [] as any[];
+    try {
+      // accept single object or comma-separated objects without surrounding []
+      const payload = text.startsWith('[') ? text : `[${text}]`;
+      const arr = JSON.parse(payload);
+      return Array.isArray(arr) ? arr : [];
+    } catch {
+      return [] as any[];
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -107,9 +142,9 @@ const CreateContractPage: React.FC = () => {
         paymentSchedule: formData.paymentType, // ✅ Changed from 'paymentType' to 'paymentSchedule'
         contractStartDate: formData.startDate, // ✅ Changed from 'startDate' to 'contractStartDate'
         contractEndDate: formData.endDate || undefined, // ✅ Changed from 'endDate' to 'contractEndDate'
-        milestones: formData.milestones ? JSON.parse(`[${formData.milestones}]`) : [],
-        terms: formData.terms,
-        deliverables: formData.deliverables ? formData.deliverables.split("\n") : [],
+        milestones: parseMilestones(formData.milestonesHtml),
+        terms: formData.termsHtml, // store rich text
+        deliverables: extractListItems(formData.deliverablesHtml),
         status: "pending",
       };
 
@@ -210,15 +245,14 @@ const CreateContractPage: React.FC = () => {
                 />
               </div>
 
-              {/* Description */}
+              {/* Description (optional: keep textarea or upgrade later) */}
               <div>
                 <Label htmlFor="description">Project Description</Label>
-                <Textarea
+                <Input
                   id="description"
                   name="description"
                   value={formData.description}
                   onChange={handleChange}
-                  rows={4}
                   placeholder="Describe the project scope and requirements..."
                 />
               </div>
@@ -290,48 +324,62 @@ const CreateContractPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Deliverables */}
+              {/* Deliverables (CKEditor) */}
               <div>
                 <Label htmlFor="deliverables">Deliverables (one per line)</Label>
-                <Textarea
-                  id="deliverables"
-                  name="deliverables"
-                  value={formData.deliverables}
-                  onChange={handleChange}
-                  rows={4}
-                  placeholder="Responsive website design&#10;Backend API development&#10;Database setup&#10;Documentation"
-                />
+                <div className="border rounded">
+                  <CKEditor
+                    editor={ClassicEditor as any}
+                    data={formData.deliverablesHtml}
+                    onReady={(editor: any) => {
+                      const el = editor?.ui?.view?.editable?.element as HTMLElement | undefined;
+                      if (el) el.style.minHeight = '200px';
+                    }}
+                    onChange={(_, editor) => {
+                      const data = editor.getData();
+                      setFormData(prev => ({ ...prev, deliverablesHtml: data }));
+                    }}
+                  />
+                </div>
               </div>
 
-              {/* Milestones */}
+              {/* Milestones (CKEditor) */}
               <div>
-                <Label htmlFor="milestones">
-                  Milestones (JSON format, optional)
-                </Label>
-                <Textarea
-                  id="milestones"
-                  name="milestones"
-                  value={formData.milestones}
-                  onChange={handleChange}
-                  rows={3}
-                  placeholder='{"name": "Phase 1", "amount": 2000, "dueDate": "2025-02-01"}'
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Enter milestones as JSON objects separated by commas
-                </p>
+                <Label>Milestones (paste JSON objects or type text)</Label>
+                <div className="border rounded">
+                  <CKEditor
+                    editor={ClassicEditor as any}
+                    data={formData.milestonesHtml}
+                    onReady={(editor: any) => {
+                      const el = editor?.ui?.view?.editable?.element as HTMLElement | undefined;
+                      if (el) el.style.minHeight = '160px';
+                    }}
+                    onChange={(_, editor) => {
+                      const data = editor.getData();
+                      setFormData(prev => ({ ...prev, milestonesHtml: data }));
+                    }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">Tip: paste comma-separated JSON objects like {`{"name":"Phase 1","amount":2000,"dueDate":"2025-02-01"}`}</p>
               </div>
 
-              {/* Terms & Conditions */}
+              {/* Terms & Conditions (CKEditor) */}
               <div>
-                <Label htmlFor="terms">Terms & Conditions</Label>
-                <Textarea
-                  id="terms"
-                  name="terms"
-                  value={formData.terms}
-                  onChange={handleChange}
-                  rows={6}
-                  placeholder="Enter contract terms, payment schedule, revision policy, etc..."
-                />
+                <Label>Terms & Conditions</Label>
+                <div className="border rounded">
+                  <CKEditor
+                    editor={ClassicEditor as any}
+                    data={formData.termsHtml}
+                    onReady={(editor: any) => {
+                      const el = editor?.ui?.view?.editable?.element as HTMLElement | undefined;
+                      if (el) el.style.minHeight = '220px';
+                    }}
+                    onChange={(_, editor) => {
+                      const data = editor.getData();
+                      setFormData(prev => ({ ...prev, termsHtml: data }));
+                    }}
+                  />
+                </div>
               </div>
 
               {/* Action Buttons */}

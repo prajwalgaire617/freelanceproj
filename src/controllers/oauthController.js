@@ -33,6 +33,36 @@ const googleCallback = asyncHandler(async (req, res) => {
   }
 });
 
+// @desc    Facebook OAuth callback
+// @route   GET /api/auth/facebook/callback
+// @access  Public
+const facebookCallback = asyncHandler(async (req, res) => {
+  try {
+    const user = req.user;
+    
+    if (!user) {
+      return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}/login?error=oauth_failed`);
+    }
+
+    // Create session for OAuth user
+    const userAgent = req.get('User-Agent') || '';
+    const ipAddress = req.ip || req.connection.remoteAddress || '';
+    
+    const sessionData = await sessionService.createSession(
+      user.id, 
+      userAgent, 
+      ipAddress
+    );
+
+    // Redirect to frontend with session data
+    const redirectUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/auth/callback?token=${sessionData.token}&sessionId=${sessionData.sessionId}&expiresAt=${sessionData.expiresAt}&provider=facebook`;
+    res.redirect(redirectUrl);
+  } catch (error) {
+    console.error('Facebook OAuth Callback Error:', error);
+    res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}/login?error=oauth_failed`);
+  }
+});
+
 // @desc    Apple OAuth callback
 // @route   GET /api/auth/apple/callback
 // @access  Public
@@ -71,12 +101,14 @@ const getOAuthUrls = asyncHandler(async (req, res) => {
   
   const urls = {
     google: `${baseUrl}/api/auth/google`,
+    facebook: `${baseUrl}/api/auth/facebook`,
     apple: `${baseUrl}/api/auth/apple`
   };
 
   // Check which OAuth providers are configured
   const configured = {
     google: !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
+    facebook: !!(process.env.FACEBOOK_APP_ID && process.env.FACEBOOK_APP_SECRET),
     apple: !!(process.env.APPLE_CLIENT_ID && process.env.APPLE_TEAM_ID && process.env.APPLE_KEY_ID && process.env.APPLE_PRIVATE_KEY)
   };
 
@@ -89,6 +121,7 @@ const getOAuthUrls = asyncHandler(async (req, res) => {
 
 module.exports = {
   googleCallback,
+  facebookCallback,
   appleCallback,
   getOAuthUrls
 };

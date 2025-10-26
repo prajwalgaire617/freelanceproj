@@ -30,7 +30,7 @@ export function LoginForm({ className, ...props }: React.ComponentProps<"div">) 
   const [loading, setLoading] = useState(false);
   const [oauthLoading, setOauthLoading] = useState(false);
   const [error, setError] = useState("");
-  const [oauthConfig, setOauthConfig] = useState({ googleEnabled: false, appleEnabled: false });
+  const [oauthConfig, setOauthConfig] = useState({ googleEnabled: false, facebookEnabled: false, appleEnabled: false });
   const [showOTPVerification, setShowOTPVerification] = useState(false);
   const [pendingUser, setPendingUser] = useState<any>(null);
 
@@ -81,6 +81,11 @@ export function LoginForm({ className, ...props }: React.ComponentProps<"div">) 
     window.location.href = 'http://localhost:3000/api/auth/google';
   };
 
+  const handleFacebookLogin = () => {
+    setOauthLoading(true);
+    window.location.href = 'http://localhost:3000/api/auth/facebook';
+  };
+
   const handleAppleLogin = () => {
     setOauthLoading(true);
     window.location.href = 'http://localhost:3000/api/auth/apple';
@@ -94,12 +99,13 @@ export function LoginForm({ className, ...props }: React.ComponentProps<"div">) 
         if (response.data.success && response.data.data.configured) {
           setOauthConfig({
             googleEnabled: response.data.data.configured.google,
+            facebookEnabled: response.data.data.configured.facebook,
             appleEnabled: response.data.data.configured.apple
           });
         }
       } catch (error) {
         console.error('Failed to fetch OAuth configuration:', error);
-        // Keep default values (both disabled)
+        // Keep default values (all disabled)
       }
     };
 
@@ -153,11 +159,13 @@ export function LoginForm({ className, ...props }: React.ComponentProps<"div">) 
         <CardContent>
           <OAuthButtons
             onGoogleLogin={handleGoogleLogin}
+            onFacebookLogin={handleFacebookLogin}
             onAppleLogin={handleAppleLogin}
             loading={oauthLoading}
             disabled={loading}
             googleEnabled={oauthConfig.googleEnabled}
-            appleEnabled={oauthConfig.appleEnabled}
+            facebookEnabled={false}
+            appleEnabled={false}
           />
           
           <form onSubmit={handleSubmit}>

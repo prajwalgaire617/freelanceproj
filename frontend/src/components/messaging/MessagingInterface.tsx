@@ -6,10 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Send, Paperclip, X, FileText, Download, Loader2 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Virtuoso } from "react-virtuoso";
 import axiosInstance from "@/api/axios";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import centrifugoService from "@/services/centrifugo";
+import { ContractMessage } from "./ContractMessage";
 
 interface Message {
   id: number;
@@ -17,6 +19,9 @@ interface Message {
   text: string;
   time: string;
   files?: { name: string; type: string; url: string }[];
+  messageType?: 'text' | 'image' | 'file' | 'contract';
+  contractId?: number;
+  content?: string; // Raw content for contract messages
 }
 
 interface Conversation {
@@ -27,7 +32,7 @@ interface Conversation {
 }
 
 export function MessagingInterface() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const targetUserId = searchParams.get("userId");
   const { user } = useAuth();
   
@@ -36,42 +41,83 @@ export function MessagingInterface() {
   const [message, setMessage] = useState("");
   const [attachments, setAttachments] = useState<File[]>([]);
   const [loading, setLoading] = useState(false);
-  const [loadingConversations, setLoadingConversations] = useState(true);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [loadingConversations, setLoadingConversations] = useState(false);
 
-  // 🚀 Connect to Centrifugo when component mounts
+  const centrifugoEnabled = (import.meta as any).env?.VITE_CENTRIFUGO_ENABLED === 'true';
+  const hasInitialized = useRef(false);
+  const urlProcessed = useRef(false);
+
+  // Show loading initially if user is not loaded yet
   useEffect(() => {
-    if (user) {
-      console.log('🚀 Initializing real-time chat for user:', user.id);
+    if (!user) {
+      setLoadingConversations(true);
+    }
+  }, []);
+
+  // 🚀 Fetch conversations when component mounts
+  useEffect(() => {
+    if (user && !hasInitialized.current) {
+      console.log('🚀 Initializing messaging for user:', user.id);
+      console.log('🔧 Centrifugo enabled:', centrifugoEnabled);
+      console.log('🔧 Centrifugo URL:', (import.meta as any).env?.VITE_CENTRIFUGO_URL);
+      hasInitialized.current = true;
       fetchAllConversations();
       
-      // Connect to Centrifugo WebSocket
-      centrifugoService.connect(user.id.toString()).catch(err => {
-        console.error("Failed to connect to Centrifugo:", err);
-        toast.error("Failed to connect to real-time messaging");
-      });
+      // Connect to Centrifugo WebSocket if enabled
+      if (centrifugoEnabled) {
+        console.log('🔌 Attempting to connect to Centrifugo...');
+        centrifugoService.connect(user.id.toString()).then(() => {
+          // Subscribe to user channel for contract notifications
+          console.log('📡 Subscribing to user channel for notifications');
+          centrifugoService.subscribeToUserNotifications(user.id.toString(), (notification: any) => {
+            console.log('🔔 User notification received:', notification);
+            if (notification.type === 'contract_notification') {
+              // Refresh conversations to show new contract message
+              console.log('📨 Contract notification received, refreshing conversations');
+              fetchAllConversations();
+              toast.success(notification.data.title, {
+                description: notification.data.message
+              });
+            }
+          });
+        }).catch(err => {
+          console.error("❌ Failed to connect to Centrifugo:", err);
+          toast.error("Failed to connect to real-time messaging");
+        });
+      } else {
+        console.warn('⚠️ Centrifugo is disabled - real-time updates will not work');
+      }
     }
 
-    // Cleanup on unmount
+    // Cleanup: DON'T disconnect - keep connection alive for app-wide messaging
+    // Connection will be closed when user logs out or app unmounts
     return () => {
-      console.log('🔌 Disconnecting from Centrifugo');
-      centrifugoService.disconnect();
+      // Only unsubscribe from current conversation, don't disconnect
+      if (selectedConversationId && user) {
+        console.log('🔕 Cleaning up conversation subscriptions');
+      }
     };
   }, [user]);
 
-  // If userId is provided in URL, open that conversation
+  // If userId is provided in URL, open that conversation (only once)
   useEffect(() => {
-    if (targetUserId && user) {
+    if (targetUserId && user && conversations.length > 0 && !urlProcessed.current) {
+      console.log(`🔗 Opening conversation from URL: ${targetUserId}`);
+      urlProcessed.current = true;
       initiateConversationWithUser(parseInt(targetUserId));
-    } else if (!selectedConversationId && conversations.length > 0) {
+      // Clear the URL parameter after using it
+      setSearchParams({});
+    } else if (!selectedConversationId && conversations.length > 0 && !targetUserId) {
       setSelectedConversationId(conversations[0].id);
     }
-  }, [targetUserId, conversations, user]);
+  }, [targetUserId, conversations.length, user]);
 
   // 🔔 Subscribe to real-time messages when conversation is selected
   useEffect(() => {
-    if (selectedConversationId && user) {
+    if (selectedConversationId && user && centrifugoEnabled) {
       console.log('🔔 Subscribing to real-time messages for conversation:', selectedConversationId);
+      console.log('🔔 Current user ID:', user.id, 'Other user ID:', selectedConversationId);
+      console.log('🔔 Is Centrifugo connected?', centrifugoService.isConnected());
       
       // Subscribe to this conversation
       centrifugoService.subscribeToConversation(
@@ -79,31 +125,51 @@ export function MessagingInterface() {
         selectedConversationId.toString(),
         (messageData) => {
           console.log('📨 Real-time message received:', messageData);
+          console.log('📨 Message for conversation:', messageData.senderId, '<->', messageData.receiverId);
+          console.log('📨 Current selected conversation:', selectedConversationId);
           
-          // Add the message to the conversation
-          const newMessage: Message = {
-            id: messageData.id || Date.now(),
-            sender: messageData.senderId === user.id ? "me" : "them",
-            text: messageData.content,
-            time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-          };
-
+          // Determine which conversation this message belongs to
+          const otherUserId = messageData.senderId === user.id ? messageData.receiverId : messageData.senderId;
+          console.log('📨 Message belongs to conversation with user:', otherUserId);
+          
+          // Prevent duplicate messages (check if message already exists)
           setConversations(prev =>
-            prev.map(c =>
-              c.id === selectedConversationId ? { ...c, messages: [...c.messages, newMessage] } : c
-            )
+            prev.map(c => {
+              // Match by the other user's ID
+              if (c.id === otherUserId) {
+                // Check if message already exists
+                const messageExists = c.messages.some(m => m.id === messageData.id);
+                if (messageExists) {
+                  console.log('⚠️ Duplicate message detected, skipping');
+                  return c;
+                }
+                
+                console.log(`✅ Adding message to conversation ${c.id}`);
+                const newMessage: Message = {
+                  id: messageData.id || Date.now(),
+                  sender: messageData.senderId === user.id ? "me" : "them",
+                  text: messageData.content,
+                  time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                  messageType: messageData.messageType || 'text',
+                  contractId: messageData.contractId,
+                  content: messageData.content
+                };
+                
+                return { ...c, messages: [...c.messages, newMessage] };
+              }
+              return c;
+            })
           );
 
-          // Show notification if message is from other user
-          if (messageData.senderId !== user.id) {
-            toast.success("New message received");
-          }
+          // Silent notification - no toast popup
+          // Messages appear instantly in the UI without popup notification
         }
       );
 
       // Cleanup: unsubscribe when conversation changes
       return () => {
         if (selectedConversationId && user) {
+          console.log('🔕 Unsubscribing from conversation:', selectedConversationId);
           centrifugoService.unsubscribeFromConversation(
             user.id.toString(),
             selectedConversationId.toString()
@@ -111,18 +177,26 @@ export function MessagingInterface() {
         }
       };
     }
-  }, [selectedConversationId, user]);
+  }, [selectedConversationId, user, centrifugoEnabled]);
 
   const fetchAllConversations = async () => {
     try {
+      console.log("📥 Fetching conversations...");
       setLoadingConversations(true);
       const token = localStorage.getItem("token");
+      
+      if (!token) {
+        console.error("❌ No token found");
+        toast.error("Please login to view messages");
+        setLoadingConversations(false);
+        return;
+      }
       
       const response = await axiosInstance.get("/messages/conversations", {
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      console.log("MessagingInterface: Fetched conversations:", response.data);
+      console.log("✅ Fetched conversations:", response.data);
 
       const apiConversations = response.data.conversations || [];
       
@@ -135,16 +209,19 @@ export function MessagingInterface() {
       }));
 
       setConversations(formattedConversations);
+      console.log("✅ Set conversations:", formattedConversations.length);
       
       // If no conversation is selected and we have conversations, select the first one
       if (!selectedConversationId && formattedConversations.length > 0) {
         setSelectedConversationId(formattedConversations[0].id);
         fetchMessageHistory(formattedConversations[0].id);
       }
-    } catch (err) {
-      console.error("Error fetching conversations:", err);
-      toast.error("Failed to load conversations");
+    } catch (err: any) {
+      console.error("❌ Error fetching conversations:", err);
+      console.error("❌ Error details:", err.response?.data);
+      toast.error(err.response?.data?.error || "Failed to load conversations");
     } finally {
+      console.log("✅ Loading complete");
       setLoadingConversations(false);
     }
   };
@@ -155,17 +232,23 @@ export function MessagingInterface() {
       const token = localStorage.getItem("token");
       
       // Fetch user details
+      console.log(`📥 Fetching user details for userId: ${userId}`);
       const userResponse = await axiosInstance.get(`/users/${userId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      const targetUser = userResponse.data.user || userResponse.data;
+      console.log(`✅ User response:`, userResponse.data);
+      const targetUser = userResponse.data.data?.user || userResponse.data.user || userResponse.data.data || userResponse.data;
+      console.log(`👤 Target user:`, targetUser);
       
       // Check if conversation already exists
       const existingConv = conversations.find(c => c.id === userId);
       
       if (existingConv) {
+        console.log(`✅ Conversation exists for user ${userId}, selecting it`);
         setSelectedConversationId(existingConv.id);
+        // Fetch latest messages even if conversation exists
+        fetchMessageHistory(userId);
       } else {
         // Create new conversation
         const newConversation: Conversation = {
@@ -191,22 +274,33 @@ export function MessagingInterface() {
 
   const fetchMessageHistory = async (userId: number) => {
     try {
+      console.log(`📥 Fetching message history for user ${userId}...`);
       const token = localStorage.getItem("token");
-      const response = await axiosInstance.get(`/messages/conversation/${userId}`, {
+      // Fetch last 100 messages instead of default 50
+      const response = await axiosInstance.get(`/messages/conversation/${userId}?limit=100`, {
         headers: { Authorization: `Bearer ${token}` }
       });
+      
+      console.log(`✅ Received ${response.data.messages?.length || 0} messages from API`);
       
       if (response.data.messages) {
         const formattedMessages: Message[] = response.data.messages.map((msg: any) => ({
           id: msg.id,
           sender: msg.senderId === user?.id ? "me" : "them",
           text: msg.content,
-          time: new Date(msg.createdAt).toLocaleTimeString()
+          time: new Date(msg.createdAt).toLocaleTimeString(),
+          messageType: msg.messageType || 'text',
+          contractId: msg.contractId,
+          content: msg.content // Keep raw content for contract messages
         }));
+        
+        console.log(`📨 Formatted messages:`, formattedMessages.map(m => ({ id: m.id, text: m.text.substring(0, 30), sender: m.sender })));
         
         setConversations(prev => prev.map(conv => 
           conv.id === userId ? { ...conv, messages: formattedMessages } : conv
         ));
+        
+        console.log(`✅ Messages added to conversation ${userId}`);
         
         // Mark messages as read
         await axiosInstance.put(
@@ -218,7 +312,7 @@ export function MessagingInterface() {
         );
       }
     } catch (err) {
-      console.error("Error fetching messages:", err);
+      console.error("❌ Error fetching messages:", err);
     }
   };
 
@@ -239,13 +333,24 @@ export function MessagingInterface() {
     if (!message.trim() && attachments.length === 0) return;
     if (!selectedConversationId) return;
 
+    // Optimistically add message bubble for sender
+    const optimisticMsg: Message = {
+      id: Date.now(),
+      sender: "me",
+      text: message,
+      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      messageType: 'text',
+    };
+    setConversations(prev => prev.map(conv =>
+      conv.id === selectedConversationId
+        ? { ...conv, messages: [...conv.messages, optimisticMsg] }
+        : conv
+    ));
+
     try {
       const token = localStorage.getItem("token");
-      
-      console.log('📤 Sending message to user:', selectedConversationId);
-      
-      // Send message to backend - it will save to DB and broadcast via Centrifugo
-      const response = await axiosInstance.post(
+      // Send message to backend
+      await axiosInstance.post(
         '/messages',
         {
           receiverId: selectedConversationId,
@@ -255,47 +360,20 @@ export function MessagingInterface() {
           headers: { Authorization: `Bearer ${token}` }
         }
       );
-
-      console.log('✅ Message sent successfully:', response.data);
-
-      // Add message to UI immediately (optimistic update)
-      const newMessage: Message = {
-        id: response.data.message?.id || Date.now(),
-        sender: "me",
-        text: message,
-        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        files: attachments.length > 0
-          ? attachments.map(file => ({
-              name: file.name,
-              type: file.type,
-              url: URL.createObjectURL(file)
-            }))
-          : undefined,
-      };
-
-      setConversations(prev =>
-        prev.map(c =>
-          c.id === selectedConversationId ? { ...c, messages: [...c.messages, newMessage] } : c
-        )
-      );
-
+      // Centrifugo will broadcast to receiver and sender for real-time sync
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || "Failed to send message");
+    } finally {
       setMessage("");
       setAttachments([]);
-      
-      // Message will be broadcast to other user via Centrifugo automatically by backend
-    } catch (err: any) {
-      console.error("Error sending message:", err);
-      toast.error(err.response?.data?.error || "Failed to send message");
     }
   };
 
-  useEffect(() => {
-    if (selectedConversation) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [selectedConversation?.messages]);
+  // Virtuoso handles auto-scrolling with followOutput="auto" and alignToBottom
+  // No manual scroll handling needed
 
-  if (loading || loadingConversations) {
+  // Show loading if still loading or user not available
+  if (!user || loading || loadingConversations) {
     return (
       <div className="flex items-center justify-center h-screen">
         <Loader2 className="w-8 h-8 animate-spin" />
@@ -303,7 +381,7 @@ export function MessagingInterface() {
     );
   }
 
-  if (conversations.length === 0) {
+  if (conversations.length === 0 && !loadingConversations) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="text-center">
@@ -340,10 +418,10 @@ export function MessagingInterface() {
                     selectedConversationId === conversation.id ? "bg-accent" : ""
                   }`}
                   onClick={() => {
+                    console.log(`🔄 Selecting conversation ${conversation.id}, current messages: ${conversation.messages.length}`);
                     setSelectedConversationId(conversation.id);
-                    if (conversation.messages.length === 0) {
-                      fetchMessageHistory(conversation.id);
-                    }
+                    // Always fetch latest messages when selecting a conversation
+                    fetchMessageHistory(conversation.id);
                   }}
                 >
                   <Avatar className="w-12 h-12">
@@ -353,7 +431,14 @@ export function MessagingInterface() {
                   <div className="flex-1 min-w-0">
                     <h4 className="font-medium truncate">{conversation.name}</h4>
                     <p className="text-sm text-muted-foreground truncate">
-                      {lastMessage?.text || (lastMessage?.files && `${lastMessage.files.length} file${lastMessage.files.length > 1 ? 's' : ''}`)}
+                      {lastMessage?.messageType === 'contract' ? (
+                        <span className="flex items-center gap-1">
+                          <FileText className="w-3 h-3" />
+                          Contract sent
+                        </span>
+                      ) : (
+                        lastMessage?.text || (lastMessage?.files && `${lastMessage.files.length} file${lastMessage.files.length > 1 ? 's' : ''}`)
+                      )}
                     </p>
                   </div>
                   <span className="text-xs text-muted-foreground">{lastMessage?.time}</span>
@@ -377,62 +462,74 @@ export function MessagingInterface() {
         </CardHeader>
 
         <CardContent className="flex flex-col flex-1 p-0">
-          <ScrollArea className="flex-1 p-4">
-            <div className="space-y-4">
-              {selectedConversation.messages.map(msg => (
-                <div
-                  key={msg.id}
-                  className={`flex ${msg.sender === "me" ? "justify-end" : "justify-start"}`}
-                >
+          <Virtuoso
+            data={selectedConversation.messages}
+            style={{ height: '100%', padding: '1rem' }}
+            followOutput="auto"
+            alignToBottom
+            itemContent={(_index, msg) => (
+              <div
+                className={`flex mb-4 ${msg.sender === "me" ? "justify-end" : "justify-start"}`}
+              >
+                {msg.messageType === 'contract' && msg.content && msg.contractId ? (
+                  <div className="max-w-[70%]">
+                    <ContractMessage 
+                      data={JSON.parse(msg.content)} 
+                      contractId={msg.contractId}
+                      isSender={msg.sender === "me"}
+                    />
+                  </div>
+                ) : (
                   <div className={`max-w-[70%] rounded-lg p-3 relative ${
                     msg.sender === "me" ? "bg-primary text-primary-foreground" : "bg-muted"
                   }`}>
-                    {msg.files && msg.files.length > 0 && (
-                      <div className="mb-2 space-y-2">
-                        {msg.files.map((file, index) => (
-                          <div key={index} className="flex flex-col gap-2">
-                            {file.type.startsWith("image") ? (
-                              <div className="relative">
-                                <img src={file.url} alt={file.name} className="max-h-40 rounded-lg" />
-                                <div className="flex items-center justify-between bg-muted rounded p-2 mt-1">
-                                  <span className="truncate text-xs text-blue-500">{file.name}</span>
+                    <>
+                      {msg.files && msg.files.length > 0 && (
+                        <div className="mb-2 space-y-2">
+                          {msg.files.map((file, index) => (
+                            <div key={index} className="flex flex-col gap-2">
+                              {file.type.startsWith("image") ? (
+                                <div className="relative">
+                                  <img src={file.url} alt={file.name} className="max-h-40 rounded-lg" />
+                                  <div className="flex items-center justify-between bg-muted rounded p-2 mt-1">
+                                    <span className="truncate text-xs text-blue-500">{file.name}</span>
+                                    <a
+                                      href={file.url}
+                                      download={file.name}
+                                      className="ml-2 text-blue-500 text-sm flex items-center gap-1"
+                                    >
+                                      <Download className="w-4 h-4" />
+                                      Download
+                                    </a>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="flex items-center justify-between bg-muted rounded p-2">
+                                  <FileText className="mr-2" />
+                                  <span className="truncate text-blue-500">{file.name}</span>
                                   <a
                                     href={file.url}
                                     download={file.name}
-                                    className="ml-2 text-blue-500 text-sm flex items-center gap-1"
+                                    className="ml-2 text-blue-500 text-sm"
                                   >
-                                    <Download className="w-4 h-4" />
                                     Download
                                   </a>
                                 </div>
-                              </div>
-                            ) : (
-                              <div className="flex items-center justify-between bg-muted rounded p-2">
-                                <FileText className="mr-2" />
-                                <span className="truncate text-blue-500">{file.name}</span>
-                                <a
-                                  href={file.url}
-                                  download={file.name}
-                                  className="ml-2 text-blue-500 text-sm"
-                                >
-                                  Download
-                                </a>
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    <p className="text-sm">{msg.text}</p>
-                    <span className={`text-xs mt-1 block ${
-                      msg.sender === "me" ? "text-primary-foreground/70" : "text-muted-foreground"
-                    }`}>{msg.time}</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <p className="text-sm">{msg.text}</p>
+                      <span className={`text-xs mt-1 block ${
+                        msg.sender === "me" ? "text-primary-foreground/70" : "text-muted-foreground"
+                      }`}>{msg.time}</span>
+                    </>
                   </div>
-                </div>
-              ))}
-              <div ref={messagesEndRef} />
-            </div>
-          </ScrollArea>
+                )}
+              </div>
+            )}
+          />
 
           <div className="border-t p-4">
             <div className="flex gap-2 items-center flex-wrap">
@@ -466,7 +563,12 @@ export function MessagingInterface() {
                 placeholder="Type your message..."
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                  }
+                }}
                 className="flex-1"
               />
               <Button onClick={sendMessage}>

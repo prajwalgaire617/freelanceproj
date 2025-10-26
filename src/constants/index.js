@@ -137,7 +137,7 @@ const DATABASE = {
   }
 };
 
-// Centrifugo
+// Centrifugo v5
 const CENTRIFUGO = {
   DEFAULT_URL: 'ws://localhost:8000/connection/websocket',
   API_URL: 'http://localhost:8000/api',

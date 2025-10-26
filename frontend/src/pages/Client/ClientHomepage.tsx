@@ -6,8 +6,6 @@ import { Plus, Briefcase, Users, MessageSquare, FileText, Search, Loader2 } from
 import { Input } from "@/components/ui/input";
 import { FreelancerSearch } from "@/components/client/FreelancerSearch";
 import { JobPostForm } from "@/components/client/JobPostForm";
-import { JobApplications } from "@/components/client/JobApplication";
-import { MessagingInterface } from "@/components/client/MessagingInterface";
 import { ContractForm } from "@/components/client/ContractForm";
 import Header from "@/components/layout/Header";
 import { useAuth } from "@/context/AuthContext";
@@ -23,8 +21,6 @@ export default function ClientDashboard() {
   const [showJobPostForm, setShowJobPostForm] = useState(false);
   const [showContractForm, setShowContractForm] = useState(false);
   const [selectedFreelancer, setSelectedFreelancer] = useState<any>(null);
-  const [selectedJob, setSelectedJob] = useState<any>(null);
-  const [showMessaging, setShowMessaging] = useState(false);
   
   // Dynamic state
   const [myJobs, setMyJobs] = useState<any[]>([]);
@@ -110,10 +106,26 @@ export default function ClientDashboard() {
           <div className="flex justify-center gap-3 flex-wrap">
             <div className="flex w-full max-w-md items-center space-x-2">
               <Input 
+                type="search"
                 placeholder="Search for skills, designers, developers..." 
                 className="bg-card border-input"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const searchValue = (e.target as HTMLInputElement).value;
+                    if (searchValue.trim()) {
+                      window.location.href = `/freelancers?search=${encodeURIComponent(searchValue)}`;
+                    }
+                  }
+                }}
               />
-              <Button>
+              <Button
+                onClick={(e) => {
+                  const searchInput = (e.currentTarget.previousElementSibling as HTMLInputElement);
+                  if (searchInput?.value.trim()) {
+                    window.location.href = `/freelancers?search=${encodeURIComponent(searchInput.value)}`;
+                  }
+                }}
+              >
                 <Search className="w-4 h-4" />
               </Button>
             </div>
@@ -184,14 +196,6 @@ export default function ClientDashboard() {
               <Briefcase className="w-4 h-4 mr-2" />
               My Jobs
             </TabsTrigger>
-            {/* <TabsTrigger value="messages" className="data-[state=active]:bg-card">
-              <MessageSquare className="w-4 h-4 mr-2" />
-              Messages
-            </TabsTrigger>
-            <TabsTrigger value="contracts" className="data-[state=active]:bg-card">
-              <FileText className="w-4 h-4 mr-2" />
-              Contracts
-            </TabsTrigger> */}
           </TabsList>
 
           <TabsContent value="browse" className="mt-0">
@@ -291,44 +295,10 @@ export default function ClientDashboard() {
                   ))}
                 </div>
               )}
-
-              {selectedJob && (
-                <JobApplications
-                  job={selectedJob}
-                  onMessage={(freelancer) => {
-                    setSelectedFreelancer(freelancer);
-                    setShowMessaging(true);
-                  }}
-                  onSendContract={(freelancer) => {
-                    setSelectedFreelancer(freelancer);
-                    setShowContractForm(true);
-                  }}
-                />
-              )}
             </div>
           </TabsContent>
 
-          <TabsContent value="messages" className="mt-0">
-            <MessagingInterface  />
-          </TabsContent>
 
-          <TabsContent value="contracts" className="mt-0">
-            <Card>
-              <CardHeader>
-                <CardTitle>Active Contracts</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-12">
-                  <FileText className="w-16 h-16 text-muted-foreground/50 mx-auto mb-4" />
-                  <p className="text-muted-foreground text-lg mb-2">No active contracts yet</p>
-                  <p className="text-muted-foreground text-sm mb-6">
-                    Send your first contract to a freelancer to get started
-                  </p>
-                  <Button variant="outline">Browse Freelancers</Button>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
         </Tabs>
       </div>
 

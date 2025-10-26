@@ -2,11 +2,14 @@ const asyncHandler = require('express-async-handler');
 const db = require('../db');
 const { validationResult } = require('express-validator');
 const CentrifugoService = require('../services/centrifugoService');
+const novuService = require('../services/novuService');
 
 // @desc    Send message
 // @route   POST /api/messages
 // @access  Private
 const sendMessage = asyncHandler(async (req, res) => {
+  console.log('🔵 sendMessage called - receiverId:', req.body.receiverId, 'senderId:', req.userId);
+  
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({ errors: errors.array() });
@@ -84,6 +87,14 @@ const sendMessage = asyncHandler(async (req, res) => {
     sentAt: new Date()
   });
 
+  // Update or create conversation
+  try {
+    await db.Conversation.updateWithMessage(senderId, receiverId, message.id, senderId);
+  } catch (convError) {
+    console.error('⚠️ Failed to update conversation:', convError.message);
+    // Don't fail the message send if conversation update fails
+  }
+
   // Get message with sender details
   const messageWithDetails = await db.Message.findByPk(message.id, {
     include: [
@@ -117,6 +128,54 @@ const sendMessage = asyncHandler(async (req, res) => {
     // Don't fail the request if broadcasting fails
   }
 
+  // 🔔 Send real-time notification to receiver
+  try {
+    const userChannel = CentrifugoService.getUserChannel(receiverId.toString());
+    console.log(`🔔 Sending notification to channel: ${userChannel}`);
+    console.log(`🔔 Notification data:`, {
+      type: 'message_notification',
+      senderId: messageWithDetails.senderId,
+      receiverId: receiverId,
+      content: messageWithDetails.content.substring(0, 50)
+    });
+    
+    await CentrifugoService.publishMessage(userChannel, {
+      type: 'message_notification',
+      data: {
+        id: messageWithDetails.id,
+        senderId: messageWithDetails.senderId,
+        sender: {
+          id: messageWithDetails.sender.id,
+          firstName: messageWithDetails.sender.firstName,
+          lastName: messageWithDetails.sender.lastName,
+          profileImage: messageWithDetails.sender.profileImage
+        },
+        content: messageWithDetails.content,
+        messageType: messageWithDetails.messageType,
+        sentAt: messageWithDetails.sentAt
+      }
+    });
+    console.log(`✅ Notification successfully sent to user:${receiverId}`);
+  } catch (error) {
+    console.error('❌ Error sending notification:', error);
+    console.error('❌ Error details:', error.message);
+    // Don't fail the request if notification fails
+  }
+
+  // 🔔 Send Novu notification
+  try {
+    await novuService.sendMessageNotification(receiverId, {
+      id: messageWithDetails.id,
+      senderId: messageWithDetails.senderId,
+      senderName: `${messageWithDetails.sender.firstName} ${messageWithDetails.sender.lastName}`,
+      senderAvatar: messageWithDetails.sender.profile_image,
+      content: messageWithDetails.content
+    });
+  } catch (error) {
+    console.error('❌ Error sending Novu notification:', error);
+    // Don't fail the request if notification fails
+  }
+
   res.status(201).json({
     message: 'Message sent successfully',
     data: messageWithDetails
@@ -132,9 +191,12 @@ const getConversation = asyncHandler(async (req, res) => {
   const currentUserId = req.userId;
   const offset = (parseInt(page) - 1) * parseInt(limit);
 
+  console.log(`📥 getConversation called: currentUser=${currentUserId}, otherUser=${otherUserId}, page=${page}, limit=${limit}`);
+
   // Check if other user exists
   const otherUser = await db.User.findByPk(otherUserId);
   if (!otherUser) {
+    console.log(`❌ User ${otherUserId} not found`);
     return res.status(404).json({ error: 'User not found' });
   }
 
@@ -161,8 +223,16 @@ const getConversation = asyncHandler(async (req, res) => {
     ],
     limit: parseInt(limit),
     offset: offset,
-    order: [['sentAt', 'ASC']]
+    order: [['sentAt', 'DESC']] // Get newest messages first
   });
+
+  // Reverse to show oldest first in UI (chat convention)
+  messages.rows.reverse();
+
+  console.log(`✅ Found ${messages.count} messages, returning ${messages.rows.length} messages`);
+  if (messages.rows.length > 0) {
+    console.log(`📨 Latest message: ID=${messages.rows[messages.rows.length - 1].id}, content="${messages.rows[messages.rows.length - 1].content?.substring(0, 30)}"`);
+  }
 
   // Mark messages as read
   await db.Message.update(
@@ -280,74 +350,69 @@ const getConversations = asyncHandler(async (req, res) => {
   const userId = req.userId;
   const offset = (parseInt(page) - 1) * parseInt(limit);
 
-  // Get unique conversation partners
-  const conversations = await db.Message.findAll({
+  // Get conversations from the Conversation model
+  const { count, rows: conversations } = await db.Conversation.findAndCountAll({
     where: {
       [db.Sequelize.Op.or]: [
-        { senderId: userId },
-        { receiverId: userId }
+        { participant1Id: userId },
+        { participant2Id: userId }
       ]
     },
     include: [
-      { model: db.User, as: 'sender' },
-      { model: db.User, as: 'receiver' }
-    ],
-    order: [['sentAt', 'DESC']]
-  });
-
-  // Group by conversation partner
-  const conversationMap = new Map();
-  conversations.forEach(message => {
-    const partnerId = message.senderId === userId ? message.receiverId : message.senderId;
-    const partner = message.senderId === userId ? message.receiver : message.sender;
-    
-    if (!conversationMap.has(partnerId)) {
-      conversationMap.set(partnerId, {
-        partnerId,
-        partner,
-        lastMessage: message,
-        unreadCount: 0
-      });
-    }
-  });
-
-  // Count unread messages
-  for (let [partnerId, conversation] of conversationMap) {
-    const unreadCount = await db.Message.count({
-      where: {
-        senderId: partnerId,
-        receiverId: userId,
-        isRead: false
+      { 
+        model: db.User, 
+        as: 'participant1',
+        attributes: ['id', 'firstName', 'lastName', 'email', 'profileImage']
+      },
+      { 
+        model: db.User, 
+        as: 'participant2',
+        attributes: ['id', 'firstName', 'lastName', 'email', 'profileImage']
+      },
+      { 
+        model: db.Message, 
+        as: 'lastMessage',
+        attributes: ['id', 'content', 'messageType', 'sentAt', 'senderId']
       }
-    });
-    conversation.unreadCount = unreadCount;
-  }
+    ],
+    order: [['lastMessageAt', 'DESC']],
+    limit: parseInt(limit),
+    offset
+  });
 
-  const conversationList = Array.from(conversationMap.values())
-    .sort((a, b) => new Date(b.lastMessage.sentAt) - new Date(a.lastMessage.sentAt))
-    .slice(offset, offset + parseInt(limit))
-    .map(conv => ({
-      id: conv.partnerId,
+  // Format conversations for response
+  const conversationList = conversations.map(conv => {
+    const isParticipant1 = conv.participant1Id === userId;
+    const otherUser = isParticipant1 ? conv.participant2 : conv.participant1;
+    const unreadCount = isParticipant1 ? conv.unreadCount1 : conv.unreadCount2;
+
+    return {
+      id: otherUser.id,
       otherUser: {
-        id: conv.partner.id,
-        firstName: conv.partner.firstName,
-        lastName: conv.partner.lastName,
-        email: conv.partner.email
+        id: otherUser.id,
+        firstName: otherUser.firstName,
+        lastName: otherUser.lastName,
+        email: otherUser.email,
+        profile_image: otherUser.profile_image
       },
-      lastMessage: {
+      lastMessage: conv.lastMessage ? {
+        id: conv.lastMessage.id,
         content: conv.lastMessage.content,
-        sentAt: conv.lastMessage.sentAt
-      },
-      lastMessageAt: conv.lastMessage.sentAt,
-      unreadCount: conv.unreadCount
-    }));
+        messageType: conv.lastMessage.messageType,
+        sentAt: conv.lastMessage.sentAt,
+        isFromMe: conv.lastMessage.senderId === userId
+      } : null,
+      lastMessageAt: conv.lastMessageAt,
+      unreadCount
+    };
+  });
 
   res.json({
     conversations: conversationList,
     pagination: {
       currentPage: parseInt(page),
-      totalPages: Math.ceil(conversationMap.size / parseInt(limit)),
-      totalConversations: conversationMap.size,
+      totalPages: Math.ceil(count / parseInt(limit)),
+      totalConversations: count,
       conversationsPerPage: parseInt(limit)
     }
   });

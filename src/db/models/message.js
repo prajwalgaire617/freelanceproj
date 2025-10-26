@@ -81,7 +81,7 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false
     },
     messageType: {
-      type: DataTypes.ENUM('text', 'image', 'file', 'system'),
+      type: DataTypes.ENUM('text', 'image', 'file', 'system', 'contract'),
       defaultValue: 'text'
     },
     // Attachments

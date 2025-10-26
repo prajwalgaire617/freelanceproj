@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
-import { toast } from 'sonner';
 
 export interface Notification {
   id: string;
@@ -52,21 +51,6 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     };
 
     setNotifications(prev => [newNotification, ...prev]);
-
-    // Show toast notification
-    switch (notification.type) {
-      case 'success':
-        toast.success(notification.title, { description: notification.message });
-        break;
-      case 'error':
-        toast.error(notification.title, { description: notification.message });
-        break;
-      case 'warning':
-        toast.warning(notification.title, { description: notification.message });
-        break;
-      default:
-        toast.info(notification.title, { description: notification.message });
-    }
   };
 
   const markAsRead = (id: string) => {

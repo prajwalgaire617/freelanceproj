@@ -104,13 +104,21 @@ const JobApplicationsPage: React.FC = () => {
   };
 
   const handleChat = (applicant: Applicant) => {
-    // Navigate to messages with the applicant
-    navigate(`/clientmessages?userId=${applicant.userId}`);
+    const targetId = applicant.userId || applicant.applicant?.id;
+    if (!targetId) {
+      console.error('No applicant userId available');
+      return;
+    }
+    navigate(`/clientmessages?userId=${targetId}`);
   };
 
   const handleSendContract = (applicant: Applicant) => {
-    // Navigate to contract creation page
-    navigate(`/contracts/create?jobId=${jobId}&freelancerId=${applicant.userId}&applicationId=${applicant.id}`);
+    const targetId = applicant.userId || applicant.applicant?.id;
+    if (!targetId) {
+      console.error('No applicant userId available for contract');
+      return;
+    }
+    navigate(`/contracts/create?jobId=${jobId}&freelancerId=${targetId}&applicationId=${applicant.id}`);
   };
 
   const handleStatusUpdate = async (applicationId: number, newStatus: string) => {

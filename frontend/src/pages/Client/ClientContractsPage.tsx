@@ -14,7 +14,8 @@ import {
   DollarSign, 
   Calendar,
   Eye,
-  Plus
+  Plus,
+  Trash2
 } from "lucide-react";
 
 interface Contract {
@@ -79,6 +80,26 @@ const ClientContractsPage: React.FC = () => {
       toast.error("Failed to load contracts");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const deleteContract = async (contractId: number) => {
+    if (!window.confirm("Are you sure you want to delete this contract? This action cannot be undone.")) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem("token");
+      await axiosInstance.delete(`/contracts/${contractId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      toast.success("Contract deleted successfully");
+      // Remove the deleted contract from the list
+      setContracts(contracts.filter(c => c.id !== contractId));
+    } catch (err: any) {
+      console.error("Error deleting contract:", err);
+      toast.error(err.response?.data?.message || "Failed to delete contract");
     }
   };
 
@@ -186,6 +207,14 @@ const ClientContractsPage: React.FC = () => {
                       >
                         <Eye className="w-4 h-4 mr-2" />
                         View Details
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => deleteContract(contract.id)}
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Delete
                       </Button>
                     </div>
                   </div>

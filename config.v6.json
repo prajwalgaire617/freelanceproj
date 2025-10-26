@@ -1,0 +1,21 @@
+{
+  "client": {
+    "token_hmac_secret_key": "worklab_centrifugo_secret_key_2024"
+  },
+  "admin": {
+    "enabled": true,
+    "insecure": true
+  },
+  "http_api": {
+    "enabled": true,
+    "insecure": true,
+    "key": "worklab_centrifugo_api_key_2024"
+  },
+  "http_server": {
+    "port": "8000",
+    "allowed_origins": ["http://localhost:5173", "http://127.0.0.1:5173"]
+  },
+  "websocket": { "enabled": true },
+  "log": { "level": "info" },
+  "swagger": { "enabled": true }
+}

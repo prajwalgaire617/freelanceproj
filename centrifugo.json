@@ -1,25 +1,52 @@
 {
   "token_hmac_secret_key": "worklab_centrifugo_secret_key_2024",
-  "admin_password": "worklab_admin_2024",
-  "admin_secret": "worklab_admin_secret_2024",
+  "admin": true,
+  "admin_insecure": true,
   "api_key": "worklab_centrifugo_api_key_2024",
-  "allowed_origins": ["*"],
-  "log_level": "info",
-  "log_file": "centrifugo.log",
+  "api_insecure": true,
+
+  "allowed_origins": [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173"
+  ],
+
+  "allow_subscribe_for_client": true,
+  "allow_publish_for_client": false,
+  "allow_history_for_client": true,
+  "allow_presence_for_client": true,
+
+  "history_size": 100,
+  "history_ttl": "24h",
+  "force_recovery": false,
+
   "namespaces": [
     {
-      "name": "chat",
-      "presence": true,
-      "join_leave": true,
+      "name": "conversation",
+      "allow_subscribe_for_client": true,
+      "allow_publish_for_client": false,
+      "allow_history_for_client": true,
+      "allow_presence_for_client": true,
       "history_size": 100,
-      "history_ttl": "24h"
+      "history_ttl": "24h",
+      "history_meta_ttl": "24h",
+      "force_recovery": true,
+      "force_positioning": true,
+      "force_push_join_leave": true
     },
     {
       "name": "user",
-      "presence": true,
-      "join_leave": true,
+      "allow_subscribe_for_client": true,
+      "allow_publish_for_client": false,
+      "allow_history_for_client": true,
+      "allow_presence_for_client": true,
       "history_size": 100,
-      "history_ttl": "24h"
+      "history_ttl": "24h",
+      "history_meta_ttl": "24h",
+      "force_recovery": true,
+      "force_positioning": true
     }
-  ]
+  ],
+
+  "engine": "memory",
+  "log_level": "trace"
 }

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import axiosInstance from "@/api/axios";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -52,6 +52,7 @@ interface Contract {
 
 const ContractsPage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { addNotification } = useNotifications();
   
   const [contracts, setContracts] = useState<Contract[]>([]);
@@ -62,6 +63,19 @@ const ContractsPage: React.FC = () => {
   useEffect(() => {
     fetchContracts();
   }, []);
+
+  // Check for contractId in URL parameters and open that contract
+  useEffect(() => {
+    const contractId = searchParams.get('id');
+    if (contractId && contracts.length > 0) {
+      const contract = contracts.find(c => c.id === parseInt(contractId));
+      if (contract) {
+        setSelectedContract(contract);
+        // Clear the URL parameter
+        setSearchParams({});
+      }
+    }
+  }, [contracts, searchParams, setSearchParams]);
 
   const fetchContracts = async () => {
     try {

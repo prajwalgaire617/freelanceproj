@@ -31,6 +31,9 @@ import axiosInstance from "@/api/axios";
 import Header from "@/components/layout/Header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { FileText, DollarSign, Calendar, CheckCircle } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { FREELANCER_NAV_ITEMS } from "@/constants/navigation";
 
 interface JobSummary {
@@ -45,6 +48,15 @@ interface JobSummary {
   client?: { id?: number; firstName?: string; lastName?: string; email?: string };
 }
 
+interface ContractInfo {
+  id: number;
+  workTitle: string;
+  totalAmount: number;
+  contractStatus: string;
+  contractStartDate: string;
+  contractEndDate?: string;
+}
+
 interface ApplicationItem {
   id: number;
   status?: string;
@@ -52,15 +64,16 @@ interface ApplicationItem {
   createdAt?: string;
   job?: JobSummary; // legacy
   jobPost?: JobSummary; // backend includes as 'jobPost'
+  contract?: ContractInfo; // contract associated with this application
 }
 
 const ApplicationsPage: React.FC = () => {
+  const navigate = useNavigate();
   const [apps, setApps] = useState<ApplicationItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<ApplicationItem | null>(null);
   const [saving, setSaving] = useState(false);
-  const [newStatus, setNewStatus] = useState<string>("");
   const [modalError, setModalError] = useState<string | null>(null);
 
   const fetchApps = async () => {
@@ -99,8 +112,21 @@ const ApplicationsPage: React.FC = () => {
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       });
       const app: ApplicationItem = res.data?.application || res.data?.data || res.data;
+      
+      // Check if there's a contract for this application
+      try {
+        const contractRes = await axiosInstance.get(`/contracts?jobApplicationId=${id}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
+        const contracts = contractRes.data?.contracts || [];
+        if (contracts.length > 0) {
+          app.contract = contracts[0]; // Get the first contract for this application
+        }
+      } catch (contractErr) {
+        console.log('No contract found for this application');
+      }
+      
       setSelected(app);
-      setNewStatus(app.status || "submitted");
       setModalError(null);
     } catch (e) {
       console.error(e);
@@ -201,6 +227,68 @@ const ApplicationsPage: React.FC = () => {
                     </>
                   );
                 })()}
+                
+                {/* Contract Information Section */}
+                {selected.contract && (
+                  <div className="mt-4 p-4 border-2 border-blue-200 bg-blue-50 rounded-lg">
+                    <div className="flex items-center gap-2 mb-3">
+                      <FileText className="w-5 h-5 text-blue-600" />
+                      <h3 className="font-semibold text-blue-900">Contract Received</h3>
+                      <Badge 
+                        className={
+                          selected.contract.contractStatus === 'active' 
+                            ? 'bg-green-500' 
+                            : selected.contract.contractStatus === 'declined'
+                            ? 'bg-red-500'
+                            : 'bg-gray-500'
+                        }
+                      >
+                        {selected.contract.contractStatus}
+                      </Badge>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <div>
+                        <div className="text-sm font-medium text-blue-900">{selected.contract.workTitle}</div>
+                      </div>
+                      
+                      <div className="flex items-center gap-2 text-sm">
+                        <DollarSign className="w-4 h-4 text-green-600" />
+                        <span className="text-gray-700">
+                          <span className="font-medium">Amount:</span> ${selected.contract.totalAmount.toLocaleString()}
+                        </span>
+                      </div>
+                      
+                      <div className="flex items-center gap-2 text-sm">
+                        <Calendar className="w-4 h-4 text-blue-600" />
+                        <span className="text-gray-700">
+                          <span className="font-medium">Start:</span> {new Date(selected.contract.contractStartDate).toLocaleDateString()}
+                        </span>
+                      </div>
+                      
+                      {selected.contract.contractEndDate && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <Calendar className="w-4 h-4 text-blue-600" />
+                          <span className="text-gray-700">
+                            <span className="font-medium">End:</span> {new Date(selected.contract.contractEndDate).toLocaleDateString()}
+                          </span>
+                        </div>
+                      )}
+                      
+                      <div className="pt-2">
+                        <Button 
+                          onClick={() => navigate(`/contracts?id=${selected.contract!.id}`)}
+                          className="w-full"
+                          variant="default"
+                        >
+                          <CheckCircle className="w-4 h-4 mr-2" />
+                          View Contract Details
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
                 {modalError && (
                   <div className="text-sm text-red-600">{modalError}</div>
                 )}

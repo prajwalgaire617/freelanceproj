@@ -24,9 +24,8 @@ const ClientApplicationsList: React.FC = () => {
 
   const nav = [
     { label: "Freelancer Search", href: "/freelancers" },
-    { label: "Applications", href: "/applications" },
+    { label: "Applications", href: "/client/applications" },
     { label: "Messages", href: "/clientmessages" },
-    { label: "Contracts", href: "/contracts" },
   ];
 
   useEffect(() => {
@@ -59,7 +58,7 @@ const ClientApplicationsList: React.FC = () => {
     <div className="min-h-screen bg-background">
       <Header navItems={nav} showLogout />
 
-      <main className="max-w-7xl mx-auto py-8 px-6">
+      <main className="max-w-7xl mx-auto py-8 px-6 space-y-8">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-semibold">My Posted Jobs</h1>
         </div>

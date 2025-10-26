@@ -33,6 +33,7 @@ const freelancerRoutes = require('./routes/freelancerRoutes');
 const clientRoutes = require('./routes/clientRoutes');
 const jobPostRoutes = require('./routes/jobPostRoutes');
 const centrifugoRoutes = require('./routes/centrifugoRoutes');
+const novuRoutes = require('./routes/novuRoutes');
 
 // Initialize Express app
 const app = express();
@@ -156,6 +157,7 @@ app.use('/api/freelancer', freelancerRoutes);
 app.use('/api/client', clientRoutes);
 app.use('/api/jobs', jobPostRoutes);
 app.use('/api/centrifugo', centrifugoRoutes);
+app.use('/api/novu', novuRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {

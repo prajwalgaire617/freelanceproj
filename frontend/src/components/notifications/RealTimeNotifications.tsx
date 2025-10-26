@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useNotifications } from '@/context/NotificationContext';
 import centrifugoService from '@/services/centrifugo';
@@ -9,20 +9,24 @@ export const RealTimeNotifications: React.FC = () => {
   const { addNotification } = useNotifications();
   const navigate = useNavigate();
   const enabled = (import.meta as any).env?.VITE_CENTRIFUGO_ENABLED === 'true';
+  const initializedRef = useRef(false);
 
   useEffect(() => {
     if (!user || !enabled) return;
+    if (!centrifugoService.isRealtimeEnabled() || centrifugoService.isSessionDisabled()) return;
+    if (initializedRef.current) return;
 
     console.log('🔔 Setting up real-time notifications for user:', user.id);
 
     // Connect to Centrifugo and subscribe to user notifications
     const setupNotifications = async () => {
       try {
-        console.log('🔔 Attempting to connect to Centrifugo for user:', user.id);
-        await centrifugoService.connect(user.id.toString());
+        if (!centrifugoService.isConnected()) {
+          console.log('🔔 Attempting to connect to Centrifugo for user:', user.id);
+          await centrifugoService.connect(user.id.toString());
+        }
         
         // Subscribe to user notifications
-        console.log('🔔 Subscribing to user notifications for user:', user.id);
         const sub = centrifugoService.subscribeToUserNotifications(
           user.id.toString(),
           (notificationData) => {
@@ -51,7 +55,15 @@ export const RealTimeNotifications: React.FC = () => {
               
               console.log('✅ Contract notification added to UI');
             } else if (notificationData.type === 'message_notification') {
+              console.log('💬 Processing message notification:', notificationData);
               const messageData = notificationData.data;
+              
+              console.log('💬 Message from:', messageData.sender);
+              console.log('💬 Message content preview:', messageData.content?.substring(0, 50));
+              console.log('💬 Adding toast notification...');
+              
+              // Navigate to correct messages page based on user type
+              const messagesPath = user.userType === 'client' ? '/clientmessages' : '/messages';
               
               addNotification({
                 type: 'info',
@@ -60,22 +72,27 @@ export const RealTimeNotifications: React.FC = () => {
                 action: {
                   label: 'View Messages',
                   onClick: () => {
-                    navigate('/messages');
+                    navigate(messagesPath);
                   }
                 }
               });
+              
+              console.log('✅ Message notification toast added');
+            } else {
+              console.log('⚠️ Unknown notification type:', notificationData.type);
+              console.log('⚠️ Full notification data:', notificationData);
             }
           }
         );
-        if (!sub) {
-          console.log('ℹ️ Centrifugo subscription deferred or disabled');
-        }
+        if (!sub) return; // no logs if disabled/deferred
       } catch (error) {
         console.error('❌ Failed to setup real-time notifications:', error);
       }
     };
 
+    // Avoid double-init in React StrictMode
     setupNotifications();
+    initializedRef.current = true;
 
     // Cleanup on unmount
     return () => {
@@ -83,6 +100,7 @@ export const RealTimeNotifications: React.FC = () => {
         centrifugoService.unsubscribeFromUserNotifications(user.id.toString());
         centrifugoService.disconnect();
       }
+      initializedRef.current = false;
     };
   }, [user, addNotification, navigate, enabled]);
 

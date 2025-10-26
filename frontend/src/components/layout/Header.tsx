@@ -77,7 +77,7 @@ const Header: React.FC<HeaderProps> = ({ navItems, showLogout }) => {
   
   return (
     <header className="border-b sticky top-0 bg-background/70 backdrop-blur-md z-50">
-      <div className="max-w-7xl mx-auto flex items-center justify-between py-4 px-6">
+      <div className="max-w-7xl mx-auto flex items-center py-4 px-6">
         <button
           type="button"
           className="text-left"
@@ -96,7 +96,8 @@ const Header: React.FC<HeaderProps> = ({ navItems, showLogout }) => {
           <h1 className="text-xl font-semibold text-primary cursor-pointer">WorkLabs</h1>
         </button>
 
-        <nav className="hidden md:flex gap-6 text-sm items-center">
+        {/* Centered nav */}
+        <nav className="hidden md:flex gap-6 text-sm items-center mx-auto">
           {navItems.map((item) => {
             const isActive = location.pathname === item.href;
             return (
@@ -113,14 +114,47 @@ const Header: React.FC<HeaderProps> = ({ navItems, showLogout }) => {
               </Link>
             );
           })}
-          
-          {/* Notifications */}
-          {user && (
-            <div className="flex items-center gap-2">
-              <NovuInbox />
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button className="flex items-center gap-2 rounded-full focus:outline-none">
+        </nav>
+
+        {/* Right-side user controls */}
+        {user && (
+          <div className="ml-auto flex items-center gap-2">
+            <NovuInbox />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="flex items-center gap-2 rounded-full focus:outline-none">
+                  {(() => {
+                    const apiBase = axiosInstance.defaults.baseURL || "";
+                    const serverOrigin = apiBase.replace(/\/?api\/?$/, "");
+                    const img = (user as any).profileImage as string | undefined;
+                    let avatarSrc: string | undefined = undefined;
+                    if (typeof img === 'string') {
+                      if (/^https?:\/\//i.test(img)) {
+                        avatarSrc = img; // absolute URL
+                      } else if (img.startsWith('/')) {
+                        avatarSrc = `${serverOrigin}${img}`; // leading slash path
+                      } else {
+                        avatarSrc = `${serverOrigin}/${img}`; // bare relative path
+                      }
+                    }
+                    return (
+                      <Avatar className="h-8 w-8">
+                        <AvatarImage src={avatarSrc || "/placeholder.svg"} />
+                        <AvatarFallback>
+                          {user.firstName?.[0]}
+                          {user.lastName?.[0]}
+                        </AvatarFallback>
+                      </Avatar>
+                    );
+                  })()}
+                  <span className="hidden md:inline text-sm font-medium">
+                    {user.firstName || user.email}
+                  </span>
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-64">
+                <DropdownMenuLabel>
+                  <div className="flex items-center gap-3">
                     {(() => {
                       const apiBase = axiosInstance.defaults.baseURL || "";
                       const serverOrigin = apiBase.replace(/\/?api\/?$/, "");
@@ -128,15 +162,15 @@ const Header: React.FC<HeaderProps> = ({ navItems, showLogout }) => {
                       let avatarSrc: string | undefined = undefined;
                       if (typeof img === 'string') {
                         if (/^https?:\/\//i.test(img)) {
-                          avatarSrc = img; // absolute URL
+                          avatarSrc = img;
                         } else if (img.startsWith('/')) {
-                          avatarSrc = `${serverOrigin}${img}`; // leading slash path
+                          avatarSrc = `${serverOrigin}${img}`;
                         } else {
-                          avatarSrc = `${serverOrigin}/${img}`; // bare relative path
+                          avatarSrc = `${serverOrigin}/${img}`;
                         }
                       }
                       return (
-                        <Avatar className="h-8 w-8">
+                        <Avatar className="h-9 w-9">
                           <AvatarImage src={avatarSrc || "/placeholder.svg"} />
                           <AvatarFallback>
                             {user.firstName?.[0]}
@@ -145,97 +179,64 @@ const Header: React.FC<HeaderProps> = ({ navItems, showLogout }) => {
                         </Avatar>
                       );
                     })()}
-                    <span className="hidden md:inline text-sm font-medium">
-                      {user.firstName || user.email}
-                    </span>
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-64">
-                  <DropdownMenuLabel>
-                    <div className="flex items-center gap-3">
-                      {(() => {
-                        const apiBase = axiosInstance.defaults.baseURL || "";
-                        const serverOrigin = apiBase.replace(/\/?api\/?$/, "");
-                        const img = (user as any).profileImage as string | undefined;
-                        let avatarSrc: string | undefined = undefined;
-                        if (typeof img === 'string') {
-                          if (/^https?:\/\//i.test(img)) {
-                            avatarSrc = img;
-                          } else if (img.startsWith('/')) {
-                            avatarSrc = `${serverOrigin}${img}`;
-                          } else {
-                            avatarSrc = `${serverOrigin}/${img}`;
-                          }
-                        }
-                        return (
-                          <Avatar className="h-9 w-9">
-                            <AvatarImage src={avatarSrc || "/placeholder.svg"} />
-                            <AvatarFallback>
-                              {user.firstName?.[0]}
-                              {user.lastName?.[0]}
-                            </AvatarFallback>
-                          </Avatar>
-                        );
-                      })()}
-                      <div className="truncate">
-                        <div className="text-sm font-semibold truncate">{user.firstName} {user.lastName}</div>
-                        <div className="text-xs text-muted-foreground truncate">{user.email}</div>
-                      </div>
+                    <div className="truncate">
+                      <div className="text-sm font-semibold truncate">{user.firstName} {user.lastName}</div>
+                      <div className="text-xs text-muted-foreground truncate">{user.email}</div>
                     </div>
-                  </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem asChild>
-                    <Link
-                      to={(user as any)?.userType === 'freelancer' ? "/freelancerhomepage" : (user as any)?.userType === 'agency' ? "/agencyhomepage" : "/clienthomepage"}
-                      className="w-full"
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link
+                    to={(user as any)?.userType === 'freelancer' ? "/freelancerhomepage" : (user as any)?.userType === 'agency' ? "/agencyhomepage" : "/clienthomepage"}
+                    className="w-full"
+                  >
+                    Home
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link
+                    to={(user as any)?.userType === 'freelancer' ? "/freelancerprofile" : (user as any)?.userType === 'agency' ? "/agency/profile" : "/clientprofile"}
+                    className="w-full"
+                  >
+                    Profile
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem disabled>
+                  Connects: {connects != null ? connects : "—"}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                {showLogout && (
+                  <>
+                    <DropdownMenuItem asChild>
+                      <Link to="/settings" className="w-full">Settings</Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link to="/security" className="w-full">Security</Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={async () => { try { await logout(); } catch (e) { console.error(e); } }}
+                      className="text-red-600 focus:text-red-600"
                     >
-                      Home
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link
-                      to={(user as any)?.userType === 'freelancer' ? "/freelancerprofile" : (user as any)?.userType === 'agency' ? "/agency/profile" : "/clientprofile"}
-                      className="w-full"
+                      Logout
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={async () => {
+                        const ok = window.confirm('Logout from all devices? This will invalidate all active sessions.');
+                        if (!ok) return;
+                        try { await logoutAll(); } catch (e) { console.error(e); }
+                      }}
+                      className="text-red-600 focus:text-red-600"
                     >
-                      Edit Profile
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem disabled>
-                    Connects: {connects != null ? connects : "—"}
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  {showLogout && (
-                    <>
-                      <DropdownMenuItem asChild>
-                        <Link to="/settings" className="w-full">Settings</Link>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem asChild>
-                        <Link to="/security" className="w-full">Security</Link>
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        onClick={async () => { try { await logout(); } catch (e) { console.error(e); } }}
-                        className="text-red-600 focus:text-red-600"
-                      >
-                        Logout
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={async () => {
-                          const ok = window.confirm('Logout from all devices? This will invalidate all active sessions.');
-                          if (!ok) return;
-                          try { await logoutAll(); } catch (e) { console.error(e); }
-                        }}
-                        className="text-red-600 focus:text-red-600"
-                      >
-                        Logout All Devices
-                      </DropdownMenuItem>
-                    </>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          )}
-        </nav>
+                      Logout All Devices
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        )}
       </div>
     </header>
   );

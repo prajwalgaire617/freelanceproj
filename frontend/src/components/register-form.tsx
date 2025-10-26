@@ -12,7 +12,6 @@ import {
 import {
   Field,
   FieldDescription,
-  FieldGroup,
   FieldLabel,
   FieldSeparator,
 } from "@/components/ui/field";
@@ -20,9 +19,8 @@ import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/context/AuthContext";
-import axios from "axios";
-
-const URL = import.meta.env.VITE_API_URL || "http://localhost:3000/api/auth/register";
+import axiosInstance from "@/api/axios";
+import OAuthButtons from "@/components/auth/OAuthButtons";
 
 interface RegisterFormProps extends React.ComponentProps<"div"> {}
 
@@ -55,6 +53,8 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ className, ...props 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState<string>("");
+  const [oauthLoading, setOauthLoading] = useState(false);
+  const [oauthConfig, setOauthConfig] = useState({ googleEnabled: false, facebookEnabled: false, appleEnabled: false });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
@@ -90,7 +90,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ className, ...props 
     setLoading(true);
 
     try {
-      const response = await axios.post(URL, {
+      const response = await axiosInstance.post('/auth/register', {
         firstName: formData.fullName.split(" ")[0],
         lastName: formData.fullName.split(" ")[1] || "",
         email: formData.email,
@@ -137,6 +137,45 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ className, ...props 
     }
   };
 
+  // OAuth handlers
+  const handleGoogleLogin = () => {
+    setOauthLoading(true);
+    const base = axiosInstance.defaults.baseURL || '';
+    // Ensure we redirect to backend /api/auth/google
+    window.location.href = `${base}/auth/google`;
+  };
+
+  const handleFacebookLogin = () => {
+    setOauthLoading(true);
+    const base = axiosInstance.defaults.baseURL || '';
+    window.location.href = `${base}/auth/facebook`;
+  };
+
+  const handleAppleLogin = () => {
+    setOauthLoading(true);
+    const base = axiosInstance.defaults.baseURL || '';
+    window.location.href = `${base}/auth/apple`;
+  };
+
+  // Fetch OAuth configuration
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const res = await axiosInstance.get('/auth/oauth-urls');
+        const cfg = res.data?.data?.configured;
+        if (cfg) {
+          setOauthConfig({
+            googleEnabled: !!cfg.google,
+            facebookEnabled: !!cfg.facebook,
+            appleEnabled: !!cfg.apple,
+          });
+        }
+      } catch (e) {
+        // ignore
+      }
+    })();
+  }, []);
+
   return (
     <div className={cn("flex flex-col gap-4 max-w-md mx-auto", className)} {...props}>
       <Card>
@@ -159,14 +198,16 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ className, ...props 
           <form onSubmit={handleSubmit}>
             <div className="space-y-4">
               {/* OAuth buttons */}
-              <div className="grid grid-cols-2 gap-3">
-                <Button variant="outline" type="button" className="w-full">
-                  Apple
-                </Button>
-                <Button variant="outline" type="button" className="w-full">
-                  Google
-                </Button>
-              </div>
+              <OAuthButtons
+                onGoogleLogin={handleGoogleLogin}
+                onFacebookLogin={handleFacebookLogin}
+                onAppleLogin={handleAppleLogin}
+                loading={oauthLoading}
+                disabled={loading}
+                googleEnabled={oauthConfig.googleEnabled}
+                facebookEnabled={false}
+                appleEnabled={false}
+              />
 
               <FieldSeparator className="*:data-[slot=field-separator-content]:bg-card">
                 Or continue with

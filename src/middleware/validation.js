@@ -99,6 +99,7 @@ const validateContractCreation = [
     .isISO8601()
     .withMessage('Valid contract start date is required'),
   body('contractEndDate')
+    .optional()
     .isISO8601()
     .withMessage('Valid contract end date is required')
 ];
