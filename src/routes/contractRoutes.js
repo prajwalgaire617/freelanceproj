@@ -64,6 +64,11 @@ router.post('/:contractId/dispute', authenticateToken, validateContractId, requi
 // @access  Private
 router.put('/:contractId/resolve-dispute', authenticateToken, validateContractId, requireContractAccess, contractController.resolveDispute);
 
+// @route   POST /api/contracts/:contractId/rate
+// @desc    Rate freelancer on completed contract
+// @access  Private (Client only)
+router.post('/:contractId/rate', authenticateToken, validateContractId, contractController.rateFreelancer);
+
 // @route   GET /api/contracts/statistics
 // @desc    Get contract statistics
 // @access  Private

@@ -10,9 +10,21 @@ interface ProfileHeaderProps {
   onSave: () => void;
   photoUrl?: string;
   saving?: boolean;
+  averageRating?: number;
+  totalReviews?: number;
 }
 
-export default function ProfileHeader({ profileData, onSave, photoUrl, saving = false }: ProfileHeaderProps) {
+export default function ProfileHeader({ 
+  profileData, 
+  onSave, 
+  photoUrl, 
+  saving = false, 
+  averageRating = 0,
+  totalReviews = 0 
+}: ProfileHeaderProps) {
+  const displayRating = typeof averageRating === 'number' ? averageRating : 0;
+  const isNewFreelancer = displayRating === 0 && totalReviews === 0;
+
   return (
     <div className="border-b bg-card">
       <div className="container mx-auto px-4 py-6">
@@ -29,9 +41,17 @@ export default function ProfileHeader({ profileData, onSave, photoUrl, saving = 
                   <MapPin className="h-4 w-4" />
                   <span>{profileData.location}</span>
                 </div>
-                <div className="flex items-center gap-1">
-                  <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                  <span>4.9 (127 reviews)</span>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
+                    <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                    <span>{displayRating.toFixed(1)}</span>
+                    {totalReviews > 0 && (
+                      <span className="text-sm">({totalReviews} {totalReviews === 1 ? 'review' : 'reviews'})</span>
+                    )}
+                  </div>
+                  {isNewFreelancer && (
+                    <Badge variant="outline" className="ml-1">New Freelancer</Badge>
+                  )}
                 </div>
                 <Badge
                   variant={profileData.availability === "available" ? "default" : "secondary"}

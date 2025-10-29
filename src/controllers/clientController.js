@@ -146,7 +146,17 @@ const searchFreelancers = asyncHandler(async (req, res) => {
       {
         model: User,
         as: 'freelancerUser',
-        attributes: ['id', 'email', 'firstName', 'lastName', 'profileImage', 'connectBalance']
+        attributes: [
+          'id', 
+          'email', 
+          'firstName', 
+          'lastName', 
+          'profileImage', 
+          'connectBalance',
+          'averageRating',
+          'totalRatings',
+          'totalReviews'
+        ]
       }
     ],
     order: [['createdAt', 'DESC']],
@@ -164,13 +174,16 @@ const searchFreelancers = asyncHandler(async (req, res) => {
           Contract.count({ where: { freelancerId: fid, contractStatus: 'active' } }),
           Contract.count({ where: { freelancerId: fid } }),
         ]);
+        // Get real ratings from user model
+        const avgRating = f.freelancerUser?.averageRating || 0;
+        const reviewsCount = f.freelancerUser?.totalReviews || 0;
+        
         f.dataValues.stats = {
           completedContracts,
           activeContracts,
           totalContracts,
-          // rating placeholders – wire real values when a reviews model exists
-          avgRating: typeof f.dataValues.avgRating === 'number' ? f.dataValues.avgRating : 0,
-          reviewsCount: typeof f.dataValues.reviewsCount === 'number' ? f.dataValues.reviewsCount : 0,
+          avgRating: parseFloat(avgRating),
+          reviewsCount,
         };
       } catch {}
     })
@@ -214,7 +227,10 @@ const getFreelancerProfile = asyncHandler(async (req, res) => {
           'availability',
           'skills',
           'experiences',
-          'portfolioItems'
+          'portfolioItems',
+          'averageRating',
+          'totalRatings',
+          'totalReviews'
         ]
       }
     ]
@@ -234,6 +250,10 @@ const getFreelancerProfile = asyncHandler(async (req, res) => {
     Contract.count({ where: { freelancerId: freelancer.id } }),
   ]);
 
+  // Get real rating from user model
+  const avgRating = freelancer.freelancerUser?.averageRating || 0;
+  const reviewsCount = freelancer.freelancerUser?.totalReviews || 0;
+
   res.json({
     success: true,
     freelancer,
@@ -241,9 +261,8 @@ const getFreelancerProfile = asyncHandler(async (req, res) => {
       completedContracts,
       activeContracts,
       totalContracts,
-      // rating placeholders – wire real values when a reviews model exists
-      avgRating: typeof freelancer.avgRating === 'number' ? freelancer.avgRating : 0,
-      reviewsCount: typeof freelancer.reviewsCount === 'number' ? freelancer.reviewsCount : 0,
+      avgRating: parseFloat(avgRating),
+      reviewsCount,
     }
   });
 });

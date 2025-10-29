@@ -2,7 +2,12 @@ import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Briefcase, Users, FileText, Loader2, Search } from "lucide-react";
+import { Plus, Briefcase, Users, FileText, Loader2, Search, TrendingUp, Clock, Bell, Target, Award, BarChart3, Calendar, Filter } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import Header from "@/components/layout/Header";
 import { useAuth } from "@/context/AuthContext";
 import axiosInstance from "@/api/axios";
@@ -17,12 +22,18 @@ export default function AgencyHomepage() {
   const [loading, setLoading] = useState(true);
   const [agencyProfile, setAgencyProfile] = useState<any>(null);
   const [myJobs, setMyJobs] = useState<any[]>([]);
+  const [recentActivity, setRecentActivity] = useState<any[]>([]);
+  const [jobFilter, setJobFilter] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const [stats, setStats] = useState({
     activeJobs: 0,
     totalApplications: 0,
     activeContracts: 0,
     unreadMessages: 0,
-    teamSize: 0
+    teamSize: 0,
+    totalEarnings: 0,
+    avgResponseTime: "2h",
+    successRate: 95
   });
 
   // Fetch agency data
@@ -64,8 +75,18 @@ export default function AgencyHomepage() {
         totalApplications,
         activeContracts,
         unreadMessages: 0,
-        teamSize: agencyProfile?.teamSize || 0
+        teamSize: agencyProfile?.teamSize || 0,
+        totalEarnings: 0,
+        avgResponseTime: "2h",
+        successRate: 95
       });
+      
+      // Set recent activity
+      setRecentActivity([
+        { type: 'application', title: 'New application received', time: '5m ago', job: jobsResponse.data.jobs?.[0]?.title },
+        { type: 'contract', title: 'Contract signed', time: '1h ago', job: 'UI/UX Designer' },
+        { type: 'job', title: 'Job posted', time: '2h ago', job: jobsResponse.data.jobs?.[0]?.title },
+      ]);
       
     } catch (err: any) {
       console.error("Error fetching agency data:", err);
@@ -80,11 +101,23 @@ export default function AgencyHomepage() {
   }, [fetchAgencyData]);
 
   const statsArray = [
-    { label: "Active Jobs", value: stats.activeJobs.toString(), icon: Briefcase, color: "text-blue-600" },
-    { label: "Applications", value: stats.totalApplications.toString(), icon: Users, color: "text-green-600" },
-    { label: "Active Contracts", value: stats.activeContracts.toString(), icon: FileText, color: "text-purple-600" },
-    { label: "Team Size", value: stats.teamSize.toString(), icon: Users, color: "text-orange-600" },
+    { label: "Active Jobs", value: stats.activeJobs.toString(), icon: Briefcase, color: "text-blue-600", trend: "+12%", bgColor: "bg-blue-50" },
+    { label: "Applications", value: stats.totalApplications.toString(), icon: Users, color: "text-green-600", trend: "+8%", bgColor: "bg-green-50" },
+    { label: "Active Contracts", value: stats.activeContracts.toString(), icon: FileText, color: "text-purple-600", trend: "+5%", bgColor: "bg-purple-50" },
+    { label: "Team Size", value: stats.teamSize.toString(), icon: Users, color: "text-orange-600", trend: "0%", bgColor: "bg-orange-50" },
+    { label: "Success Rate", value: `${stats.successRate}%`, icon: Target, color: "text-emerald-600", trend: "+2%", bgColor: "bg-emerald-50" },
+    { label: "Avg Response", value: stats.avgResponseTime, icon: Clock, color: "text-cyan-600", trend: "-15min", bgColor: "bg-cyan-50" },
   ];
+  
+  // Filter jobs based on selected filter
+  const filteredJobs = myJobs.filter(job => {
+    if (jobFilter === "all") return true;
+    return job.status === jobFilter;
+  }).filter(job => {
+    if (!searchQuery) return true;
+    return job.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+           job.description?.toLowerCase().includes(searchQuery.toLowerCase());
+  });
 
   if (loading) {
     return (
@@ -112,37 +145,110 @@ export default function AgencyHomepage() {
           </p>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        {/* Enhanced Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
           {statsArray.map((stat, index) => (
-            <Card key={index}>
+            <Card key={index} className="hover:shadow-lg transition-all duration-300 border-l-4" style={{ borderLeftColor: stat.color.replace('text-', '').includes('blue') ? '#3B82F6' : stat.color.replace('text-', '').includes('green') ? '#10B981' : stat.color.replace('text-', '').includes('purple') ? '#8B5CF6' : stat.color.replace('text-', '').includes('orange') ? '#F97316' : stat.color.replace('text-', '').includes('emerald') ? '#10B981' : '#06B6D4' }}>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
+                <CardTitle className="text-xs font-medium text-muted-foreground">
                   {stat.label}
                 </CardTitle>
-                <stat.icon className={`h-4 w-4 ${stat.color}`} />
+                <div className={`p-2 rounded-lg ${stat.bgColor}`}>
+                  <stat.icon className={`h-4 w-4 ${stat.color}`} />
+                </div>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{stat.value}</div>
+                <div className="flex items-baseline justify-between">
+                  <div className="text-2xl font-bold">{stat.value}</div>
+                  <Badge variant="secondary" className="text-xs">
+                    <TrendingUp className="h-3 w-3 mr-1" />
+                    {stat.trend}
+                  </Badge>
+                </div>
               </CardContent>
             </Card>
           ))}
         </div>
 
+        {/* Activity Feed & Notifications Row */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          {/* Recent Activity */}
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Clock className="h-5 w-5" />
+                  Recent Activity
+                </CardTitle>
+                <Button variant="ghost" size="sm">View All</Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <ScrollArea className="h-[200px]">
+                <div className="space-y-3">
+                  {recentActivity.map((activity, idx) => (
+                    <div key={idx} className="flex items-start gap-3 p-3 rounded-lg hover:bg-accent transition-colors">
+                      <div className={`p-2 rounded-full ${
+                        activity.type === 'application' ? 'bg-blue-100' :
+                        activity.type === 'contract' ? 'bg-green-100' : 'bg-purple-100'
+                      }`}>
+                        {activity.type === 'application' ? <Users className="h-4 w-4 text-blue-600" /> :
+                         activity.type === 'contract' ? <FileText className="h-4 w-4 text-green-600" /> :
+                         <Briefcase className="h-4 w-4 text-purple-600" />}
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">{activity.title}</p>
+                        <p className="text-xs text-muted-foreground">{activity.job}</p>
+                      </div>
+                      <span className="text-xs text-muted-foreground">{activity.time}</span>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+
+          {/* Quick Notifications */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Bell className="h-5 w-5" />
+                Notifications
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <p className="text-sm font-medium text-blue-900">New Messages</p>
+                  <p className="text-xs text-blue-700 mt-1">3 unread conversations</p>
+                </div>
+                <div className="p-3 bg-green-50 rounded-lg border border-green-200">
+                  <p className="text-sm font-medium text-green-900">Applications</p>
+                  <p className="text-xs text-green-700 mt-1">{stats.totalApplications} pending reviews</p>
+                </div>
+                <div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
+                  <p className="text-sm font-medium text-purple-900">Milestones Due</p>
+                  <p className="text-xs text-purple-700 mt-1">2 contracts need attention</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
         {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
           <Button 
             size="lg" 
-            className="h-24 text-lg"
+            className="h-20 text-base hover:scale-105 transition-transform"
             onClick={() => navigate("/agency/jobs/new")}
           >
             <Plus className="mr-2 h-5 w-5" />
-            Post a New Job
+            Post Job
           </Button>
           <Button 
             size="lg" 
             variant="outline" 
-            className="h-24 text-lg"
+            className="h-20 text-base hover:scale-105 transition-transform"
             onClick={() => navigate("/agency/freelancers")}
           >
             <Search className="mr-2 h-5 w-5" />
@@ -151,26 +257,73 @@ export default function AgencyHomepage() {
           <Button 
             size="lg" 
             variant="outline" 
-            className="h-24 text-lg"
+            className="h-20 text-base hover:scale-105 transition-transform"
+            onClick={() => navigate("/agency/contracts")}
+          >
+            <FileText className="mr-2 h-5 w-5" />
+            Contracts
+          </Button>
+          <Button 
+            size="lg" 
+            variant="outline" 
+            className="h-20 text-base hover:scale-105 transition-transform"
             onClick={() => navigate("/agency/profile")}
           >
-            <Users className="mr-2 h-5 w-5" />
-            Edit Profile
+            <Award className="mr-2 h-5 w-5" />
+            Profile
           </Button>
         </div>
 
         {/* Main Content Tabs */}
         <Tabs defaultValue="jobs" className="space-y-4">
-          <TabsList>
-            <TabsTrigger value="jobs">My Jobs</TabsTrigger>
-            <TabsTrigger value="contracts">Contracts</TabsTrigger>
-            <TabsTrigger value="profile">Agency Profile</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-grid">
+            <TabsTrigger value="jobs" className="gap-2">
+              <Briefcase className="h-4 w-4" />
+              My Jobs
+            </TabsTrigger>
+            <TabsTrigger value="analytics" className="gap-2">
+              <BarChart3 className="h-4 w-4" />
+              Analytics
+            </TabsTrigger>
+            <TabsTrigger value="contracts" className="gap-2">
+              <FileText className="h-4 w-4" />
+              Contracts
+            </TabsTrigger>
+            <TabsTrigger value="profile" className="gap-2">
+              <Users className="h-4 w-4" />
+              Profile
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="jobs" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>Your Posted Jobs</CardTitle>
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <CardTitle>Your Posted Jobs</CardTitle>
+                  <div className="flex items-center gap-2">
+                    <div className="relative flex-1 md:w-64">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Search jobs..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-9"
+                      />
+                    </div>
+                    <Select value={jobFilter} onValueChange={setJobFilter}>
+                      <SelectTrigger className="w-32">
+                        <Filter className="h-4 w-4 mr-2" />
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Jobs</SelectItem>
+                        <SelectItem value="active">Active</SelectItem>
+                        <SelectItem value="draft">Draft</SelectItem>
+                        <SelectItem value="closed">Closed</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
                 {myJobs.length === 0 ? (
@@ -182,31 +335,56 @@ export default function AgencyHomepage() {
                       Post Your First Job
                     </Button>
                   </div>
+                ) : filteredJobs.length === 0 ? (
+                  <div className="text-center py-12">
+                    <Search className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground mb-4">No jobs match your search</p>
+                  </div>
                 ) : (
-                  <div className="space-y-4">
-                    {myJobs.slice(0, 5).map((job) => (
+                  <div className="space-y-3">
+                    {filteredJobs.map((job) => (
                       <div 
                         key={job.id} 
-                        className="border rounded-lg p-4 hover:bg-accent cursor-pointer transition-colors"
+                        className="border rounded-lg p-4 hover:shadow-md hover:border-primary/50 cursor-pointer transition-all group"
                         onClick={() => navigate(`/agency/jobs/${job.id}`)}
                       >
-                        <div className="flex justify-between items-start mb-2">
-                          <h3 className="font-semibold text-lg">{job.title}</h3>
-                          <span className={`px-2 py-1 rounded text-xs font-medium ${
-                            job.status === 'active' ? 'bg-green-100 text-green-700' :
-                            job.status === 'draft' ? 'bg-gray-100 text-gray-700' :
-                            'bg-red-100 text-red-700'
-                          }`}>
+                        <div className="flex justify-between items-start mb-3">
+                          <div className="flex-1">
+                            <h3 className="font-semibold text-lg group-hover:text-primary transition-colors">{job.title}</h3>
+                            <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                              {job.description}
+                            </p>
+                          </div>
+                          <Badge variant={job.status === 'active' ? 'default' : job.status === 'draft' ? 'secondary' : 'outline'}>
                             {job.status}
-                          </span>
+                          </Badge>
                         </div>
-                        <p className="text-sm text-muted-foreground mb-2 line-clamp-2">
-                          {job.description}
-                        </p>
-                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                          <span>{job.applicationCount || 0} applications</span>
-                          <span>${job.budget} {job.budgetType}</span>
-                          <span>Posted {new Date(job.createdAt).toLocaleDateString()}</span>
+                        <div className="flex flex-wrap items-center gap-4 text-sm">
+                          <div className="flex items-center gap-1 text-muted-foreground">
+                            <Users className="h-4 w-4" />
+                            <span>{job.applicationCount || 0} applications</span>
+                          </div>
+                          <div className="flex items-center gap-1 text-muted-foreground">
+                            <FileText className="h-4 w-4" />
+                            <span>${job.budget} {job.budgetType}</span>
+                          </div>
+                          <div className="flex items-center gap-1 text-muted-foreground">
+                            <Calendar className="h-4 w-4" />
+                            <span>{new Date(job.createdAt).toLocaleDateString()}</span>
+                          </div>
+                          {job.applicationCount > 0 && (
+                            <Button 
+                              size="sm" 
+                              variant="outline" 
+                              className="ml-auto"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/agency/jobs/${job.id}/applications`);
+                              }}
+                            >
+                              View Applications
+                            </Button>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -214,6 +392,62 @@ export default function AgencyHomepage() {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* New Analytics Tab */}
+          <TabsContent value="analytics" className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Performance Overview</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <div className="flex justify-between text-sm mb-2">
+                      <span className="text-muted-foreground">Job Success Rate</span>
+                      <span className="font-semibold">{stats.successRate}%</span>
+                    </div>
+                    <Progress value={stats.successRate} className="h-2" />
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-sm mb-2">
+                      <span className="text-muted-foreground">Response Rate</span>
+                      <span className="font-semibold">87%</span>
+                    </div>
+                    <Progress value={87} className="h-2" />
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-sm mb-2">
+                      <span className="text-muted-foreground">Client Satisfaction</span>
+                      <span className="font-semibold">92%</span>
+                    </div>
+                    <Progress value={92} className="h-2" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Quick Stats</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex justify-between items-center p-3 bg-accent rounded-lg">
+                    <span className="text-sm">Total Jobs Posted</span>
+                    <span className="text-lg font-bold">{myJobs.length}</span>
+                  </div>
+                  <div className="flex justify-between items-center p-3 bg-accent rounded-lg">
+                    <span className="text-sm">Avg. Applications/Job</span>
+                    <span className="text-lg font-bold">
+                      {myJobs.length > 0 ? Math.round(stats.totalApplications / myJobs.length) : 0}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center p-3 bg-accent rounded-lg">
+                    <span className="text-sm">Active Contracts</span>
+                    <span className="text-lg font-bold">{stats.activeContracts}</span>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
 
           <TabsContent value="contracts" className="space-y-4">

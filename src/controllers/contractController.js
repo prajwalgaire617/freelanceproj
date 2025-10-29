@@ -336,6 +336,41 @@ const acceptContract = asyncHandler(async (req, res) => {
     }
   }
 
+  // 🚀 Broadcast contract acceptance to both parties via Centrifugo
+  try {
+    // Get client and freelancer user IDs
+    const clientId = contract.clientId;
+    let freelancerUserId = userId; // The user who accepted (current user)
+    
+    // Send system message to conversation channel
+    const conversationChannel = CentrifugoService.getConversationChannel(clientId, freelancerUserId);
+    await CentrifugoService.publishMessage(conversationChannel, {
+      type: 'system',
+      messageType: 'contract_status',
+      content: '✅ Contract has been accepted! Work has started.',
+      contractId: contract.id,
+      contractStatus: 'active',
+      sentAt: currentDate
+    });
+    console.log(`✅ Broadcasted contract acceptance to conversation ${conversationChannel}`);
+
+    // Send notification to client
+    const clientChannel = CentrifugoService.getUserChannel(clientId.toString());
+    await CentrifugoService.publishMessage(clientChannel, {
+      type: 'contract_notification',
+      data: {
+        title: 'Contract Accepted',
+        message: 'The freelancer has accepted your contract!',
+        contractId: contract.id,
+        contractStatus: 'active'
+      }
+    });
+    console.log(`✅ Sent notification to client ${clientId}`);
+  } catch (error) {
+    console.error('❌ Error broadcasting contract acceptance:', error);
+    // Don't fail the request if broadcasting fails
+  }
+
   res.json({
     message: 'Contract accepted successfully. Work has started!',
     contract
@@ -383,6 +418,41 @@ const declineContract = asyncHandler(async (req, res) => {
     } catch (error) {
       console.error('❌ Error updating job application status:', error);
     }
+  }
+
+  // 🚀 Broadcast contract decline to both parties via Centrifugo
+  try {
+    // Get client and freelancer user IDs
+    const clientId = contract.clientId;
+    let freelancerUserId = userId; // The user who declined (current user)
+    
+    // Send system message to conversation channel
+    const conversationChannel = CentrifugoService.getConversationChannel(clientId, freelancerUserId);
+    await CentrifugoService.publishMessage(conversationChannel, {
+      type: 'system',
+      messageType: 'contract_status',
+      content: '❌ Contract has been declined.',
+      contractId: contract.id,
+      contractStatus: 'declined',
+      sentAt: new Date()
+    });
+    console.log(`✅ Broadcasted contract decline to conversation ${conversationChannel}`);
+
+    // Send notification to client
+    const clientChannel = CentrifugoService.getUserChannel(clientId.toString());
+    await CentrifugoService.publishMessage(clientChannel, {
+      type: 'contract_notification',
+      data: {
+        title: 'Contract Declined',
+        message: 'The freelancer has declined your contract.',
+        contractId: contract.id,
+        contractStatus: 'declined'
+      }
+    });
+    console.log(`✅ Sent notification to client ${clientId}`);
+  } catch (error) {
+    console.error('❌ Error broadcasting contract decline:', error);
+    // Don't fail the request if broadcasting fails
   }
 
   res.json({
@@ -682,6 +752,119 @@ const deleteContract = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc    Rate freelancer on completed contract
+// @route   POST /api/contracts/:id/rate
+// @access  Private (Client only)
+const rateFreelancer = asyncHandler(async (req, res) => {
+  const { id: contractId } = req.params;
+  const { rating, review } = req.body;
+  const clientId = req.userId;
+
+  // Validate rating
+  if (!rating || rating < 1 || rating > 5) {
+    return res.status(400).json({ 
+      error: 'Rating must be between 1 and 5' 
+    });
+  }
+
+  // Find contract
+  const contract = await db.Contract.findByPk(contractId, {
+    include: [
+      { 
+        model: db.Freelancer, 
+        as: 'freelancer',
+        include: [{ model: db.User, as: 'freelancerUser' }]
+      }
+    ]
+  });
+
+  if (!contract) {
+    return res.status(404).json({ error: 'Contract not found' });
+  }
+
+  // Verify client owns the contract
+  if (contract.clientId !== clientId) {
+    return res.status(403).json({ 
+      error: 'Only the client who created the contract can rate it' 
+    });
+  }
+
+  // Verify contract is completed
+  if (contract.contractStatus !== 'completed') {
+    return res.status(400).json({ 
+      error: 'Can only rate completed contracts' 
+    });
+  }
+
+  // Verify not already rated
+  if (contract.clientRating) {
+    return res.status(400).json({ 
+      error: 'You have already rated this contract' 
+    });
+  }
+
+  // Update contract with rating
+  await contract.update({
+    clientRating: rating,
+    clientReview: review || null,
+    ratedAt: new Date()
+  });
+
+  // Get freelancer's user ID
+  const freelancerUserId = contract.freelancer.userId;
+
+  // Update freelancer's cached rating statistics
+  const ratedContracts = await db.Contract.findAll({
+    where: {
+      freelancerId: contract.freelancerId,
+      clientRating: { [db.Sequelize.Op.ne]: null }
+    },
+    attributes: ['clientRating']
+  });
+
+  const totalRatings = ratedContracts.length;
+  const sumRatings = ratedContracts.reduce((sum, c) => sum + parseFloat(c.clientRating), 0);
+  const averageRating = totalRatings > 0 ? (sumRatings / totalRatings).toFixed(1) : 0;
+
+  // Count reviews (ratings with review text)
+  const totalReviews = ratedContracts.filter(c => contract.clientReview).length;
+
+  // Update user's rating cache
+  await db.User.update(
+    {
+      averageRating,
+      totalRatings,
+      totalReviews
+    },
+    {
+      where: { id: freelancerUserId }
+    }
+  );
+
+  // Get updated contract
+  const updatedContract = await db.Contract.findByPk(contractId, {
+    include: [
+      { model: db.User, as: 'client' },
+      { 
+        model: db.Freelancer, 
+        as: 'freelancer',
+        include: [{ model: db.User, as: 'freelancerUser' }]
+      }
+    ]
+  });
+
+  res.json({
+    success: true,
+    message: 'Rating submitted successfully',
+    contract: updatedContract,
+    updatedRating: {
+      averageRating,
+      totalRatings,
+      totalReviews
+    }
+  });
+});
+
 module.exports = {
   createContract,
   getContracts,
@@ -695,4 +878,5 @@ module.exports = {
   disputeContract,
   resolveDispute,
   getContractStatistics,
+  rateFreelancer,
 };

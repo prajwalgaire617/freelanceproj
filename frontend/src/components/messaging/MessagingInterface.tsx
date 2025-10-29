@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -14,11 +14,19 @@ import centrifugoService from "@/services/centrifugo";
 import { ContractMessage } from "./ContractMessage";
 
 interface Message {
-  id: number;
+  id: number | string;
   sender: "me" | "them";
   text: string;
   time: string;
-  files?: { name: string; type: string; url: string }[];
+  files?: { 
+    filename?: string;
+    originalName?: string;
+    name?: string;
+    type?: string;
+    mimetype?: string;
+    url: string;
+    size?: number;
+  }[];
   messageType?: 'text' | 'image' | 'file' | 'contract';
   contractId?: number;
   content?: string; // Raw content for contract messages
@@ -29,10 +37,12 @@ interface Conversation {
   name: string;
   img: string;
   messages: Message[];
+  userType?: "freelancer" | "client" | "agency" | "admin";
 }
 
 export function MessagingInterface() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const targetUserId = searchParams.get("userId");
   const { user } = useAuth();
   
@@ -132,19 +142,44 @@ export function MessagingInterface() {
           const otherUserId = messageData.senderId === user.id ? messageData.receiverId : messageData.senderId;
           console.log('📨 Message belongs to conversation with user:', otherUserId);
           
-          // Prevent duplicate messages (check if message already exists)
+          // Prevent duplicate messages and handle optimistic message replacement
           setConversations(prev =>
             prev.map(c => {
               // Match by the other user's ID
               if (c.id === otherUserId) {
-                // Check if message already exists
-                const messageExists = c.messages.some(m => m.id === messageData.id);
-                if (messageExists) {
-                  console.log('⚠️ Duplicate message detected, skipping');
+                // Check if real message with this ID already exists
+                const realMessageExists = c.messages.some(m => 
+                  typeof m.id === 'number' && m.id === messageData.id
+                );
+                
+                if (realMessageExists) {
+                  console.log('⚠️ Real message already exists, skipping');
                   return c;
                 }
                 
                 console.log(`✅ Adding message to conversation ${c.id}`);
+                
+                // Handle system messages (contract status updates)
+                if (messageData.type === 'system' && messageData.messageType === 'contract_status') {
+                  const systemMessage: Message = {
+                    id: Date.now(),
+                    sender: "them", // System messages appear on the other side
+                    text: messageData.content,
+                    time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                    messageType: 'text', // System messages are text, not contract
+                    contractId: messageData.contractId,
+                    content: messageData.content
+                  };
+                  toast.success(messageData.content);
+                  
+                  // Refetch messages to update contract statuses
+                  setTimeout(() => {
+                    fetchMessageHistory(otherUserId);
+                  }, 1000);
+                  
+                  return { ...c, messages: [...c.messages, systemMessage] };
+                }
+                
                 const newMessage: Message = {
                   id: messageData.id || Date.now(),
                   sender: messageData.senderId === user.id ? "me" : "them",
@@ -152,10 +187,18 @@ export function MessagingInterface() {
                   time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
                   messageType: messageData.messageType || 'text',
                   contractId: messageData.contractId,
-                  content: messageData.content
+                  content: messageData.content,
+                  files: messageData.attachments && messageData.attachments.length > 0 ? messageData.attachments : undefined
                 };
                 
-                return { ...c, messages: [...c.messages, newMessage] };
+                // Remove any optimistic message with same content (temp IDs start with 'temp_')
+                const filteredMessages = c.messages.filter(m => 
+                  !(typeof m.id === 'string' && m.id.startsWith('temp_') && 
+                    m.text === messageData.content && 
+                    m.sender === newMessage.sender)
+                );
+                
+                return { ...c, messages: [...filteredMessages, newMessage] };
               }
               return c;
             })
@@ -166,16 +209,8 @@ export function MessagingInterface() {
         }
       );
 
-      // Cleanup: unsubscribe when conversation changes
-      return () => {
-        if (selectedConversationId && user) {
-          console.log('🔕 Unsubscribing from conversation:', selectedConversationId);
-          centrifugoService.unsubscribeFromConversation(
-            user.id.toString(),
-            selectedConversationId.toString()
-          );
-        }
-      };
+      // Cleanup: Don't unsubscribe immediately, keep subscription active
+      // Only unsubscribe when component unmounts or user logs out
     }
   }, [selectedConversationId, user, centrifugoEnabled]);
 
@@ -205,7 +240,8 @@ export function MessagingInterface() {
         id: conv.otherUser.id,
         name: `${conv.otherUser.firstName} ${conv.otherUser.lastName}`,
         img: `https://api.dicebear.com/7.x/avataaars/svg?seed=${conv.otherUser.firstName}`,
-        messages: [] // Will be loaded when conversation is selected
+        messages: [], // Will be loaded when conversation is selected
+        userType: conv.otherUser.userType || conv.otherUser.role // Include user type for navigation logic
       }));
 
       setConversations(formattedConversations);
@@ -255,7 +291,8 @@ export function MessagingInterface() {
           id: userId,
           name: `${targetUser.firstName} ${targetUser.lastName}`,
           img: `https://api.dicebear.com/7.x/avataaars/svg?seed=${targetUser.firstName}`,
-          messages: []
+          messages: [],
+          userType: targetUser.userType || targetUser.role // Include user type for navigation logic
         };
         
         setConversations(prev => [newConversation, ...prev]);
@@ -291,7 +328,8 @@ export function MessagingInterface() {
           time: new Date(msg.createdAt).toLocaleTimeString(),
           messageType: msg.messageType || 'text',
           contractId: msg.contractId,
-          content: msg.content // Keep raw content for contract messages
+          content: msg.content, // Keep raw content for contract messages
+          files: msg.attachments && msg.attachments.length > 0 ? msg.attachments : undefined
         }));
         
         console.log(`📨 Formatted messages:`, formattedMessages.map(m => ({ id: m.id, text: m.text.substring(0, 30), sender: m.sender })));
@@ -333,36 +371,70 @@ export function MessagingInterface() {
     if (!message.trim() && attachments.length === 0) return;
     if (!selectedConversationId) return;
 
-    // Optimistically add message bubble for sender
+    // Add optimistic message for immediate feedback
     const optimisticMsg: Message = {
-      id: Date.now(),
+      id: `temp_${Date.now()}`, // Use string ID to distinguish from real messages
       sender: "me",
       text: message,
       time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      messageType: 'text',
+      messageType: attachments.length > 0 ? 'file' : 'text',
+      files: attachments.length > 0 ? attachments.map(f => ({
+        name: f.name,
+        type: f.type,
+        url: URL.createObjectURL(f)
+      })) : undefined
     };
+    
     setConversations(prev => prev.map(conv =>
       conv.id === selectedConversationId
         ? { ...conv, messages: [...conv.messages, optimisticMsg] }
         : conv
-    ));
-
-    try {
+    ));    try {
       const token = localStorage.getItem("token");
-      // Send message to backend
-      await axiosInstance.post(
-        '/messages',
-        {
-          receiverId: selectedConversationId,
-          content: message
-        },
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
-      );
+      
+      // Use FormData if files are attached
+      if (attachments.length > 0) {
+        const formData = new FormData();
+        formData.append('receiverId', selectedConversationId.toString());
+        formData.append('content', message || ''); // Content can be empty if only files
+        
+        // Append all files
+        attachments.forEach(file => {
+          formData.append('files', file);
+        });
+        
+        await axiosInstance.post('/messages', formData, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'multipart/form-data'
+          }
+        });
+      } else {
+        // Send JSON for text-only messages
+        await axiosInstance.post(
+          '/messages',
+          {
+            receiverId: selectedConversationId,
+            content: message
+          },
+          {
+            headers: { Authorization: `Bearer ${token}` }
+          }
+        );
+      }
+      
       // Centrifugo will broadcast to receiver and sender for real-time sync
+      // The optimistic message will be replaced by the real message from broadcast
     } catch (err: any) {
+      console.error('❌ Error sending message:', err);
       toast.error(err.response?.data?.error || "Failed to send message");
+      
+      // Remove optimistic message on error
+      setConversations(prev => prev.map(conv =>
+        conv.id === selectedConversationId
+          ? { ...conv, messages: conv.messages.filter(m => m.id !== optimisticMsg.id) }
+          : conv
+      ));
     } finally {
       setMessage("");
       setAttachments([]);
@@ -375,7 +447,7 @@ export function MessagingInterface() {
   // Show loading if still loading or user not available
   if (!user || loading || loadingConversations) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex items-center justify-center h-full">
         <Loader2 className="w-8 h-8 animate-spin" />
       </div>
     );
@@ -383,7 +455,7 @@ export function MessagingInterface() {
 
   if (conversations.length === 0 && !loadingConversations) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex items-center justify-center h-full">
         <div className="text-center">
           <p className="text-muted-foreground mb-2">No conversations yet</p>
           <p className="text-sm text-muted-foreground">Send a message to start a conversation</p>
@@ -394,20 +466,20 @@ export function MessagingInterface() {
 
   if (!selectedConversation) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex items-center justify-center h-full">
         <p className="text-muted-foreground">Select a conversation to start messaging</p>
       </div>
     );
   }
 
   return (
-    <div className="grid md:grid-cols-3 gap-6 h-screen p-4">
+    <div className="grid md:grid-cols-3 gap-4 h-full p-4 max-w-full overflow-hidden">
       {/* Conversations List */}
-      <Card className="md:col-span-1 flex flex-col overflow-y-scroll">
-        <CardHeader>
+      <Card className="md:col-span-1 flex flex-col h-full overflow-hidden min-w-0">
+        <CardHeader className="flex-shrink-0">
           <CardTitle>Messages</CardTitle>
         </CardHeader>
-        <CardContent className="p-0 flex-1">
+        <CardContent className="p-0 flex-1 overflow-hidden">
           <ScrollArea className="h-full">
             {conversations.map(conversation => {
               const lastMessage = conversation.messages[conversation.messages.length - 1];
@@ -424,7 +496,7 @@ export function MessagingInterface() {
                     fetchMessageHistory(conversation.id);
                   }}
                 >
-                  <Avatar className="w-12 h-12">
+                  <Avatar className="w-12 h-12 flex-shrink-0">
                     <AvatarImage src={conversation.img} />
                     <AvatarFallback>{conversation.name[0]}</AvatarFallback>
                   </Avatar>
@@ -441,7 +513,7 @@ export function MessagingInterface() {
                       )}
                     </p>
                   </div>
-                  <span className="text-xs text-muted-foreground">{lastMessage?.time}</span>
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">{lastMessage?.time}</span>
                 </div>
               );
             })}
@@ -450,18 +522,32 @@ export function MessagingInterface() {
       </Card>
 
       {/* Chat Area */}
-      <Card className="md:col-span-2 flex flex-col overflow-y-auto">
-        <CardHeader className="border-b">
+      <Card className="md:col-span-2 flex flex-col h-full overflow-hidden min-w-0">
+        <CardHeader className="border-b flex-shrink-0">
           <div className="flex items-center gap-3">
-            <Avatar>
+            <Avatar className="flex-shrink-0">
               <AvatarImage src={selectedConversation.img} />
               <AvatarFallback>{selectedConversation.name[0]}</AvatarFallback>
             </Avatar>
-            <CardTitle>{selectedConversation.name}</CardTitle>
+            <CardTitle 
+              className={
+                user?.userType === 'client' && selectedConversation.userType === 'freelancer'
+                  ? "cursor-pointer hover:text-primary transition-colors"
+                  : "cursor-default"
+              }
+              onClick={() => {
+                // Only allow clients to navigate to freelancer profiles
+                if (user?.userType === 'client' && selectedConversation.userType === 'freelancer') {
+                  navigate(`/freelancer-profile/${selectedConversationId}`);
+                }
+              }}
+            >
+              {selectedConversation.name}
+            </CardTitle>
           </div>
         </CardHeader>
 
-        <CardContent className="flex flex-col flex-1 p-0">
+        <CardContent className="flex flex-col flex-1 p-0 overflow-hidden">
           <Virtuoso
             data={selectedConversation.messages}
             style={{ height: '100%', padding: '1rem' }}
@@ -472,7 +558,7 @@ export function MessagingInterface() {
                 className={`flex mb-4 ${msg.sender === "me" ? "justify-end" : "justify-start"}`}
               >
                 {msg.messageType === 'contract' && msg.content && msg.contractId ? (
-                  <div className="max-w-[70%]">
+                  <div className="max-w-[70%] min-w-0">
                     <ContractMessage 
                       data={JSON.parse(msg.content)} 
                       contractId={msg.contractId}
@@ -480,47 +566,53 @@ export function MessagingInterface() {
                     />
                   </div>
                 ) : (
-                  <div className={`max-w-[70%] rounded-lg p-3 relative ${
+                  <div className={`max-w-[70%] min-w-0 rounded-lg p-3 relative word-wrap break-words ${
                     msg.sender === "me" ? "bg-primary text-primary-foreground" : "bg-muted"
                   }`}>
                     <>
                       {msg.files && msg.files.length > 0 && (
                         <div className="mb-2 space-y-2">
-                          {msg.files.map((file, index) => (
-                            <div key={index} className="flex flex-col gap-2">
-                              {file.type.startsWith("image") ? (
-                                <div className="relative">
-                                  <img src={file.url} alt={file.name} className="max-h-40 rounded-lg" />
-                                  <div className="flex items-center justify-between bg-muted rounded p-2 mt-1">
-                                    <span className="truncate text-xs text-blue-500">{file.name}</span>
+                          {msg.files.map((file, index) => {
+                            const fileType = file.type || file.mimetype || '';
+                            const fileName = file.name || file.originalName || 'file';
+                            const isImage = fileType.startsWith('image/');
+                            
+                            return (
+                              <div key={index} className="flex flex-col gap-2">
+                                {isImage ? (
+                                  <div className="relative">
+                                    <img src={file.url} alt={fileName} className="max-h-40 rounded-lg max-w-full" />
+                                    <div className="flex items-center justify-between bg-muted rounded p-2 mt-1">
+                                      <span className="truncate text-xs text-blue-500 flex-1 min-w-0">{fileName}</span>
+                                      <a
+                                        href={file.url}
+                                        download={fileName}
+                                        className="ml-2 text-blue-500 text-sm flex items-center gap-1 flex-shrink-0"
+                                      >
+                                        <Download className="w-4 h-4" />
+                                        Download
+                                      </a>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center justify-between bg-muted rounded p-2 min-w-0">
+                                    <FileText className="mr-2 flex-shrink-0" />
+                                    <span className="truncate text-blue-500 flex-1 min-w-0">{fileName}</span>
                                     <a
                                       href={file.url}
-                                      download={file.name}
-                                      className="ml-2 text-blue-500 text-sm flex items-center gap-1"
+                                      download={fileName}
+                                      className="ml-2 text-blue-500 text-sm flex-shrink-0"
                                     >
-                                      <Download className="w-4 h-4" />
                                       Download
                                     </a>
                                   </div>
-                                </div>
-                              ) : (
-                                <div className="flex items-center justify-between bg-muted rounded p-2">
-                                  <FileText className="mr-2" />
-                                  <span className="truncate text-blue-500">{file.name}</span>
-                                  <a
-                                    href={file.url}
-                                    download={file.name}
-                                    className="ml-2 text-blue-500 text-sm"
-                                  >
-                                    Download
-                                  </a>
-                                </div>
-                              )}
-                            </div>
-                          ))}
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
-                      <p className="text-sm">{msg.text}</p>
+                      <p className="text-sm break-words">{msg.text}</p>
                       <span className={`text-xs mt-1 block ${
                         msg.sender === "me" ? "text-primary-foreground/70" : "text-muted-foreground"
                       }`}>{msg.time}</span>
@@ -531,9 +623,9 @@ export function MessagingInterface() {
             )}
           />
 
-          <div className="border-t p-4">
-            <div className="flex gap-2 items-center flex-wrap">
-              <label htmlFor="attachment" className="cursor-pointer">
+          <div className="border-t p-4 flex-shrink-0">
+            <div className="flex gap-2 items-center flex-wrap min-w-0">
+              <label htmlFor="attachment" className="cursor-pointer flex-shrink-0">
                 <Button asChild variant="outline" size="icon">
                   <span>
                     <Paperclip className="w-4 h-4" />
@@ -548,11 +640,11 @@ export function MessagingInterface() {
                 onChange={handleFileChange}
               />
               {attachments.length > 0 && (
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2 min-w-0">
                   {attachments.map((file, index) => (
-                    <div key={index} className="flex items-center gap-2 bg-muted p-1 px-2 rounded">
+                    <div key={index} className="flex items-center gap-2 bg-muted p-1 px-2 rounded min-w-0">
                       <span className="text-xs truncate max-w-[150px]">{file.name}</span>
-                      <Button variant="ghost" size="icon" onClick={() => removeAttachment(index)}>
+                      <Button variant="ghost" size="icon" onClick={() => removeAttachment(index)} className="flex-shrink-0">
                         <X className="w-3 h-3" />
                       </Button>
                     </div>
@@ -569,9 +661,9 @@ export function MessagingInterface() {
                     sendMessage();
                   }
                 }}
-                className="flex-1"
+                className="flex-1 min-w-0"
               />
-              <Button onClick={sendMessage}>
+              <Button onClick={sendMessage} className="flex-shrink-0">
                 <Send className="w-4 h-4" />
               </Button>
             </div>

@@ -1,11 +1,17 @@
 import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Briefcase, Users, MessageSquare, FileText, Search, Loader2 } from "lucide-react";
+import { Plus, Briefcase, Users, MessageSquare, FileText, Search, Loader2, TrendingUp, Clock, DollarSign, Star, Target, CheckCircle2, Filter, Calendar } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FreelancerSearch } from "@/components/client/FreelancerSearch";
 import { JobPostForm } from "@/components/client/JobPostForm";
+import { MessagingInterface } from "@/components/client/MessagingInterface";
 import { ContractForm } from "@/components/client/ContractForm";
 import Header from "@/components/layout/Header";
 import { useAuth } from "@/context/AuthContext";
@@ -16,6 +22,7 @@ import { CLIENT_NAV_ITEMS } from "@/constants/navigation";
 
 export default function ClientDashboard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   // const { addNotification } = useNotifications();
   
   const [showJobPostForm, setShowJobPostForm] = useState(false);
@@ -24,11 +31,17 @@ export default function ClientDashboard() {
   
   // Dynamic state
   const [myJobs, setMyJobs] = useState<any[]>([]);
+  const [savedFreelancers, setSavedFreelancers] = useState<any[]>([]);
+  const [recentActivity, setRecentActivity] = useState<any[]>([]);
+  const [jobFilter, setJobFilter] = useState("all");
   const [stats, setStats] = useState({
     activeJobs: 0,
     totalApplications: 0,
     activeContracts: 0,
-    unreadMessages: 0
+    unreadMessages: 0,
+    totalSpent: 0,
+    avgProjectCost: 0,
+    completionRate: 0
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -67,8 +80,23 @@ export default function ClientDashboard() {
         activeJobs,
         totalApplications,
         activeContracts,
-        unreadMessages
+        unreadMessages,
+        totalSpent: 0,
+        avgProjectCost: 0,
+        completionRate: 85
       });
+      
+      // Mock data for saved freelancers and activity
+      setSavedFreelancers([
+        { id: 1, name: 'John Doe', skills: ['React', 'Node.js'], rating: 4.8 },
+        { id: 2, name: 'Jane Smith', skills: ['UI/UX', 'Figma'], rating: 4.9 },
+      ]);
+      
+      setRecentActivity([
+        { type: 'job', title: 'New job posted', time: '2h ago', detail: jobsResponse.data.jobs?.[0]?.title },
+        { type: 'application', title: 'Application received', time: '5h ago', detail: 'Full Stack Developer' },
+        { type: 'message', title: 'New message', time: '1d ago', detail: 'From John Doe' },
+      ]);
       
     } catch (err: any) {
       console.error("Error fetching client data:", err);
@@ -83,13 +111,21 @@ export default function ClientDashboard() {
     fetchClientData();
   }, [fetchClientData]);
 
-  // Dynamic stats array
+  // Dynamic stats array with enhanced metrics
   const statsArray = [
-    { label: "Active Jobs", value: stats.activeJobs.toString(), icon: Briefcase },
-    { label: "Total Applications", value: stats.totalApplications.toString(), icon: Users },
-    { label: "Active Contracts", value: stats.activeContracts.toString(), icon: FileText },
-    { label: "Unread Messages", value: stats.unreadMessages.toString(), icon: MessageSquare },
+    { label: "Active Jobs", value: stats.activeJobs.toString(), icon: Briefcase, color: "text-blue-600", bgColor: "bg-blue-50", trend: "+3" },
+    { label: "Applications", value: stats.totalApplications.toString(), icon: Users, color: "text-green-600", bgColor: "bg-green-50", trend: "+12" },
+    { label: "Active Contracts", value: stats.activeContracts.toString(), icon: FileText, color: "text-purple-600", bgColor: "bg-purple-50", trend: "+2" },
+    { label: "Messages", value: stats.unreadMessages.toString(), icon: MessageSquare, color: "text-orange-600", bgColor: "bg-orange-50", trend: "0" },
+    { label: "Total Spent", value: `$${stats.totalSpent}`, icon: DollarSign, color: "text-emerald-600", bgColor: "bg-emerald-50", trend: "+$2.5k" },
+    { label: "Completion Rate", value: `${stats.completionRate}%`, icon: Target, color: "text-cyan-600", bgColor: "bg-cyan-50", trend: "+5%" },
   ];
+  
+  // Filter jobs
+  const filteredJobs = myJobs.filter(job => {
+    if (jobFilter === "all") return true;
+    return job.status === jobFilter;
+  });
 
   return (
     <div className="min-h-screen bg-background">
@@ -137,19 +173,19 @@ export default function ClientDashboard() {
         </div>
       </section>
 
-      {/* Stats Cards */}
+      {/* Enhanced Stats Cards */}
       <section className="max-w-7xl mx-auto px-6 -mt-8 mb-8">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
           {loading ? (
             // Loading state
-            Array.from({ length: 4 }).map((_, index) => (
+            Array.from({ length: 6 }).map((_, index) => (
               <Card key={index} className="hover:shadow-lg transition-shadow">
-                <CardContent className="p-6">
+                <CardContent className="p-5">
                   <div className="flex items-center justify-between mb-2">
-                    <Loader2 className="w-8 h-8 text-primary animate-spin" />
-                    <span className="text-3xl font-bold text-foreground">-</span>
+                    <Loader2 className="w-6 h-6 text-primary animate-spin" />
                   </div>
-                  <p className="text-sm text-muted-foreground">Loading...</p>
+                  <div className="h-4 bg-muted animate-pulse rounded w-16 mb-2"></div>
+                  <div className="h-3 bg-muted animate-pulse rounded w-20"></div>
                 </CardContent>
               </Card>
             ))
@@ -168,15 +204,21 @@ export default function ClientDashboard() {
               </CardContent>
             </Card>
           ) : (
-            // Dynamic stats
+            // Enhanced stats with trends
             statsArray.map((stat) => (
-              <Card key={stat.label} className="hover:shadow-lg transition-shadow">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between mb-2">
-                    <stat.icon className="w-8 h-8 text-primary" />
-                    <span className="text-3xl font-bold text-foreground">{stat.value}</span>
+              <Card key={stat.label} className="hover:shadow-lg transition-all duration-300 border-l-4" style={{ borderLeftColor: stat.color.replace('text-', '').includes('blue') ? '#3B82F6' : stat.color.replace('text-', '').includes('green') ? '#10B981' : stat.color.replace('text-', '').includes('purple') ? '#8B5CF6' : stat.color.replace('text-', '').includes('orange') ? '#F97316' : stat.color.replace('text-', '').includes('emerald') ? '#10B981' : '#06B6D4' }}>
+                <CardContent className="p-5">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className={`p-2 rounded-lg ${stat.bgColor}`}>
+                      <stat.icon className={`w-5 h-5 ${stat.color}`} />
+                    </div>
+                    <Badge variant="secondary" className="text-xs">
+                      <TrendingUp className="w-3 h-3 mr-1" />
+                      {stat.trend}
+                    </Badge>
                   </div>
-                  <p className="text-sm text-muted-foreground">{stat.label}</p>
+                  <div className="text-2xl font-bold mb-1">{stat.value}</div>
+                  <p className="text-xs text-muted-foreground">{stat.label}</p>
                 </CardContent>
               </Card>
             ))
@@ -184,17 +226,113 @@ export default function ClientDashboard() {
         </div>
       </section>
 
+      {/* Saved Freelancers & Activity Section */}
+      <div className="max-w-7xl mx-auto px-6 mb-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Saved Freelancers */}
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Star className="h-5 w-5" />
+                  Saved Freelancers
+                </CardTitle>
+                <Button variant="ghost" size="sm" onClick={() => navigate("/freelancers")}>View All</Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {savedFreelancers.length === 0 ? (
+                <div className="text-center py-8">
+                  <Users className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+                  <p className="text-muted-foreground text-sm">No saved freelancers yet</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {savedFreelancers.map((freelancer) => (
+                    <div key={freelancer.id} className="flex items-center justify-between p-3 rounded-lg hover:bg-accent transition-colors group">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center text-white font-semibold">
+                          {freelancer.name.charAt(0)}
+                        </div>
+                        <div>
+                          <p className="font-medium text-sm">{freelancer.name}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            {freelancer.skills.slice(0, 2).map((skill: string) => (
+                              <Badge key={skill} variant="secondary" className="text-xs">{skill}</Badge>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1">
+                          <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                          <span className="text-sm font-medium">{freelancer.rating}</span>
+                        </div>
+                        <Button size="sm" variant="outline" className="opacity-0 group-hover:opacity-100 transition-opacity">
+                          Contact
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Recent Activity */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Clock className="h-5 w-5" />
+                Recent Activity
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ScrollArea className="h-[220px]">
+                <div className="space-y-3">
+                  {recentActivity.map((activity, idx) => (
+                    <div key={idx} className="flex gap-3 p-3 rounded-lg hover:bg-accent transition-colors">
+                      <div className={`p-2 rounded-full h-fit ${
+                        activity.type === 'job' ? 'bg-blue-100' :
+                        activity.type === 'application' ? 'bg-green-100' : 'bg-purple-100'
+                      }`}>
+                        {activity.type === 'job' ? <Briefcase className="h-4 w-4 text-blue-600" /> :
+                         activity.type === 'application' ? <CheckCircle2 className="h-4 w-4 text-green-600" /> :
+                         <MessageSquare className="h-4 w-4 text-purple-600" />}
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">{activity.title}</p>
+                        <p className="text-xs text-muted-foreground mt-1">{activity.detail}</p>
+                        <span className="text-xs text-muted-foreground">{activity.time}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-6 pb-16">
         <Tabs defaultValue="browse" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mb-8 bg-muted">
+          <TabsList className="grid w-full grid-cols-4 mb-8 bg-muted">
             <TabsTrigger value="browse" className="data-[state=active]:bg-card">
               <Users className="w-4 h-4 mr-2" />
-              Top Freelancers
+              Browse
             </TabsTrigger>
             <TabsTrigger value="jobs" className="data-[state=active]:bg-card">
               <Briefcase className="w-4 h-4 mr-2" />
               My Jobs
+            </TabsTrigger>
+            <TabsTrigger value="analytics" className="data-[state=active]:bg-card">
+              <Target className="w-4 h-4 mr-2" />
+              Analytics
+            </TabsTrigger>
+            <TabsTrigger value="contracts" className="data-[state=active]:bg-card">
+              <FileText className="w-4 h-4 mr-2" />
+              Contracts
             </TabsTrigger>
           </TabsList>
 
@@ -208,93 +346,159 @@ export default function ClientDashboard() {
           </TabsContent>
 
           <TabsContent value="jobs" className="mt-0">
-            <div className="space-y-6">
-              {loading ? (
-                // Loading state for jobs
-                <div className="grid gap-4">
-                  {Array.from({ length: 3 }).map((_, index) => (
-                    <Card key={index} className="group cursor-pointer hover:shadow-lg transition-all">
-                      <CardHeader>
-                        <CardTitle className="flex items-center justify-between">
-                          <div className="h-6 bg-muted animate-pulse rounded w-48"></div>
-                          <div className="h-6 bg-muted animate-pulse rounded w-16"></div>
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <Users className="w-4 h-4 text-muted-foreground" />
-                            <div className="h-4 bg-muted animate-pulse rounded w-32"></div>
-                          </div>
-                          <div className="h-8 bg-muted animate-pulse rounded w-32"></div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              ) : error ? (
-                // Error state for jobs
-                <Card>
-                  <CardContent className="p-6 text-center">
-                    <p className="text-red-500 mb-4">{error}</p>
-                    <Button onClick={() => window.location.reload()} variant="outline">
-                      Retry
+            <Card>
+              <CardHeader>
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <CardTitle>Your Posted Jobs</CardTitle>
+                  <div className="flex items-center gap-2">
+                    <Select value={jobFilter} onValueChange={setJobFilter}>
+                      <SelectTrigger className="w-32">
+                        <Filter className="h-4 w-4 mr-2" />
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Jobs</SelectItem>
+                        <SelectItem value="active">Active</SelectItem>
+                        <SelectItem value="draft">Draft</SelectItem>
+                        <SelectItem value="closed">Closed</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button onClick={() => setShowJobPostForm(true)}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Post Job
                     </Button>
-                  </CardContent>
-                </Card>
-              ) : myJobs.length === 0 ? (
-                // Empty state
-                <Card>
-                  <CardContent className="p-12 text-center">
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {loading ? (
+                  // Loading state
+                  <div className="space-y-3">
+                    {Array.from({ length: 3 }).map((_, index) => (
+                      <div key={index} className="border rounded-lg p-4">
+                        <div className="h-6 bg-muted animate-pulse rounded w-48 mb-3"></div>
+                        <div className="h-4 bg-muted animate-pulse rounded w-32"></div>
+                      </div>
+                    ))}
+                  </div>
+                ) : error ? (
+                  // Error state
+                  <div className="text-center py-8">
+                    <p className="text-red-500 mb-4">{error}</p>
+                    <Button onClick={() => window.location.reload()} variant="outline">Retry</Button>
+                  </div>
+                ) : myJobs.length === 0 ? (
+                  // Empty state
+                  <div className="text-center py-12">
                     <Briefcase className="w-16 h-16 text-muted-foreground/50 mx-auto mb-4" />
                     <h3 className="text-lg font-semibold mb-2">No jobs posted yet</h3>
-                    <p className="text-muted-foreground mb-6">
-                      Start by posting your first job to find talented freelancers
-                    </p>
+                    <p className="text-muted-foreground mb-6">Start by posting your first job</p>
                     <Button onClick={() => setShowJobPostForm(true)}>
                       <Plus className="w-4 h-4 mr-2" />
                       Post Your First Job
                     </Button>
-                  </CardContent>
-                </Card>
-              ) : (
-                // Dynamic jobs list
-                <div className="grid gap-4">
-                  {myJobs.map((job) => (
-                    <Card key={job.id} className="group cursor-pointer hover:shadow-lg transition-all">
-                      <CardHeader>
-                        <CardTitle className="flex items-center justify-between">
-                          <span className="text-lg">{job.title}</span>
-                          <span className={`text-sm font-normal px-4 py-1.5 rounded-full ${
-                            job.status === "active" 
-                              ? "bg-primary/10 text-primary" 
-                              : "bg-muted text-muted-foreground"
-                          }`}>
-                            {job.status?.charAt(0).toUpperCase() + job.status?.slice(1)}
-                          </span>
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <Users className="w-4 h-4 text-muted-foreground" />
-                            <span className="text-muted-foreground">
-                              {job.applicationCount || 0} applications received
-                            </span>
+                  </div>
+                ) : filteredJobs.length === 0 ? (
+                  <div className="text-center py-12">
+                    <Search className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground mb-4">No jobs match your filter</p>
+                  </div>
+                ) : (
+                  // Jobs list
+                  <div className="space-y-3">
+                    {filteredJobs.map((job) => (
+                      <div 
+                        key={job.id} 
+                        className="border rounded-lg p-4 hover:shadow-md hover:border-primary/50 transition-all group cursor-pointer"
+                        onClick={() => window.location.href = `/job-applications/${job.id}`}
+                      >
+                        <div className="flex justify-between items-start mb-3">
+                          <div className="flex-1">
+                            <h3 className="font-semibold text-lg group-hover:text-primary transition-colors">{job.title}</h3>
+                            <p className="text-sm text-muted-foreground mt-1 line-clamp-1">{job.description}</p>
                           </div>
-                          <Button 
-                            onClick={() => window.location.href = `/job-applications/${job.id}`}
-                            variant="outline"
-                            className="group-hover:bg-primary group-hover:text-primary-foreground transition"
-                          >
-                            View Applications
-                          </Button>
+                          <Badge variant={job.status === 'active' ? 'default' : job.status === 'draft' ? 'secondary' : 'outline'}>
+                            {job.status}
+                          </Badge>
                         </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              )}
+                        <div className="flex flex-wrap items-center gap-4 text-sm">
+                          <div className="flex items-center gap-1 text-muted-foreground">
+                            <Users className="h-4 w-4" />
+                            <span>{job.applicationCount || 0} applications</span>
+                          </div>
+                          <div className="flex items-center gap-1 text-muted-foreground">
+                            <DollarSign className="h-4 w-4" />
+                            <span>${job.budget}</span>
+                          </div>
+                          <div className="flex items-center gap-1 text-muted-foreground">
+                            <Calendar className="h-4 w-4" />
+                            <span>{new Date(job.createdAt).toLocaleDateString()}</span>
+                          </div>
+                          {job.applicationCount > 0 && (
+                            <Button size="sm" variant="outline" className="ml-auto" onClick={(e) => e.stopPropagation()}>
+                              View Applications
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* New Analytics Tab */}
+          <TabsContent value="analytics" className="mt-0">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Project Performance</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <div className="flex justify-between text-sm mb-2">
+                      <span className="text-muted-foreground">Completion Rate</span>
+                      <span className="font-semibold">{stats.completionRate}%</span>
+                    </div>
+                    <Progress value={stats.completionRate} className="h-2" />
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-sm mb-2">
+                      <span className="text-muted-foreground">On-Time Delivery</span>
+                      <span className="font-semibold">78%</span>
+                    </div>
+                    <Progress value={78} className="h-2" />
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-sm mb-2">
+                      <span className="text-muted-foreground">Satisfaction Score</span>
+                      <span className="font-semibold">4.7/5.0</span>
+                    </div>
+                    <Progress value={94} className="h-2" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Quick Insights</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex justify-between items-center p-3 bg-accent rounded-lg">
+                    <span className="text-sm">Avg. Response Time</span>
+                    <span className="text-lg font-bold">2.4h</span>
+                  </div>
+                  <div className="flex justify-between items-center p-3 bg-accent rounded-lg">
+                    <span className="text-sm">Projects Completed</span>
+                    <span className="text-lg font-bold">{Math.floor(myJobs.length * 0.6)}</span>
+                  </div>
+                  <div className="flex justify-between items-center p-3 bg-accent rounded-lg">
+                    <span className="text-sm">Avg. Project Budget</span>
+                    <span className="text-lg font-bold">${stats.avgProjectCost}</span>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           </TabsContent>
 

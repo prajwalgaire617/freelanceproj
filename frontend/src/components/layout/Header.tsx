@@ -47,8 +47,8 @@ interface HeaderProps {
 
 const Header: React.FC<HeaderProps> = ({ navItems, showLogout }) => {
   const { user, logout, logoutAll } = useAuth();
-  const [connects, setConnects] = useState<number | null>(null);
   const navigate = useNavigate();
+  const [connects, setConnects] = useState<number | null>(null);
   const location = useLocation();
 
   useEffect(() => {
@@ -93,7 +93,13 @@ const Header: React.FC<HeaderProps> = ({ navItems, showLogout }) => {
             else navigate("/");
           }}
         >
-          <h1 className="text-xl font-semibold text-primary cursor-pointer">WorkLabs</h1>
+          <img
+            src="/images/logo.png"
+            alt="WorkLabs Logo"
+            width={130}
+            height={40}
+            className="cursor-pointer"
+          />
         </button>
 
         {/* Centered nav */}
@@ -216,7 +222,14 @@ const Header: React.FC<HeaderProps> = ({ navItems, showLogout }) => {
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
-                      onClick={async () => { try { await logout(); } catch (e) { console.error(e); } }}
+                      onClick={async () => { 
+                        try { 
+                          await logout(); 
+                          navigate('/');
+                        } catch (e) { 
+                          console.error(e); 
+                        } 
+                      }}
                       className="text-red-600 focus:text-red-600"
                     >
                       Logout
@@ -225,7 +238,12 @@ const Header: React.FC<HeaderProps> = ({ navItems, showLogout }) => {
                       onClick={async () => {
                         const ok = window.confirm('Logout from all devices? This will invalidate all active sessions.');
                         if (!ok) return;
-                        try { await logoutAll(); } catch (e) { console.error(e); }
+                        try { 
+                          await logoutAll(); 
+                          navigate('/');
+                        } catch (e) { 
+                          console.error(e); 
+                        }
                       }}
                       className="text-red-600 focus:text-red-600"
                     >

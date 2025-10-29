@@ -244,6 +244,22 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.JSON,
       allowNull: true,
       defaultValue: []
+    },
+    // Rating system for freelancers
+    averageRating: {
+      type: DataTypes.DECIMAL(2, 1),
+      allowNull: true,
+      defaultValue: 0.0
+    },
+    totalRatings: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0
+    },
+    totalReviews: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0
     }
   }, {
     sequelize,

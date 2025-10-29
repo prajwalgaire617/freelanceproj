@@ -24,6 +24,8 @@ export default function FreelancerProfile() {
     const [photoUrl, setPhotoUrl] = useState<string | undefined>(undefined);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [averageRating, setAverageRating] = useState<number>(0);
+    const [totalReviews, setTotalReviews] = useState<number>(0);
     const [verificationStatus, setVerificationStatus] = useState<VerificationStatus>({
         emailVerified: true,
         phoneVerified: false,
@@ -66,6 +68,10 @@ export default function FreelancerProfile() {
                 if (user) {
                     const apiBase = axiosInstance.defaults.baseURL || "";
                     const serverOrigin = apiBase.replace(/\/?api\/?$/, "");
+                    
+                    // Set rating data
+                    setAverageRating(typeof user.averageRating === 'number' ? user.averageRating : 0);
+                    setTotalReviews(typeof user.totalReviews === 'number' ? user.totalReviews : 0);
                     
                     setProfileData((prev) => ({
                         ...prev,
@@ -283,6 +289,8 @@ export default function FreelancerProfile() {
                 onSave={handleSave} 
                 photoUrl={photoUrl}
                 saving={saving}
+                averageRating={averageRating}
+                totalReviews={totalReviews}
             />
 
             {/* Main Content */}

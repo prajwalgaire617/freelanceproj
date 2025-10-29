@@ -4,7 +4,8 @@ import axiosInstance from "@/api/axios";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import Header from "@/components/layout/Header";
 import { toast } from "sonner";
 import { CLIENT_NAV_ITEMS } from "@/constants/navigation";
@@ -15,7 +16,7 @@ import {
   Calendar,
   Eye,
   Plus,
-  Trash2
+  Star
 } from "lucide-react";
 
 interface Contract {
@@ -33,6 +34,9 @@ interface Contract {
   terms: string | null;
   milestones: any[] | string;
   createdAt: string;
+  clientRating: number | null;
+  clientReview: string | null;
+  ratedAt: string | null;
   client: {
     firstName: string;
     lastName: string;
@@ -59,6 +63,11 @@ const ClientContractsPage: React.FC = () => {
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
+  const [ratingContract, setRatingContract] = useState<Contract | null>(null);
+  const [rating, setRating] = useState(0);
+  const [hoverRating, setHoverRating] = useState(0);
+  const [review, setReview] = useState("");
+  const [submittingRating, setSubmittingRating] = useState(false);
 
   useEffect(() => {
     fetchContracts();
@@ -83,23 +92,47 @@ const ClientContractsPage: React.FC = () => {
     }
   };
 
-  const deleteContract = async (contractId: number) => {
-    if (!window.confirm("Are you sure you want to delete this contract? This action cannot be undone.")) {
+  const openRatingDialog = (contract: Contract) => {
+    setRatingContract(contract);
+    setRating(0);
+    setReview("");
+  };
+
+  const submitRating = async () => {
+    if (!ratingContract) return;
+    if (rating === 0) {
+      toast.error("Please select a rating");
       return;
     }
 
     try {
+      setSubmittingRating(true);
       const token = localStorage.getItem("token");
-      await axiosInstance.delete(`/contracts/${contractId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      
+      await axiosInstance.post(
+        `/contracts/${ratingContract.id}/rate`,
+        { rating, review },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
 
-      toast.success("Contract deleted successfully");
-      // Remove the deleted contract from the list
-      setContracts(contracts.filter(c => c.id !== contractId));
+      toast.success("Rating submitted successfully!");
+      
+      // Update the contract in the list
+      setContracts(contracts.map(c => 
+        c.id === ratingContract.id 
+          ? { ...c, clientRating: rating, clientReview: review, ratedAt: new Date().toISOString() }
+          : c
+      ));
+      
+      // Close the dialog
+      setRatingContract(null);
+      setRating(0);
+      setReview("");
     } catch (err: any) {
-      console.error("Error deleting contract:", err);
-      toast.error(err.response?.data?.message || "Failed to delete contract");
+      console.error("Error submitting rating:", err);
+      toast.error(err.response?.data?.error || "Failed to submit rating");
+    } finally {
+      setSubmittingRating(false);
     }
   };
 
@@ -208,14 +241,21 @@ const ClientContractsPage: React.FC = () => {
                         <Eye className="w-4 h-4 mr-2" />
                         View Details
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => deleteContract(contract.id)}
-                      >
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        Delete
-                      </Button>
+                      {contract.contractStatus === 'completed' && !contract.clientRating && (
+                        <Button
+                          size="sm"
+                          variant="default"
+                          onClick={() => openRatingDialog(contract)}
+                        >
+                          <Star className="w-4 h-4 mr-2" />
+                          Rate Freelancer
+                        </Button>
+                      )}
+                      {contract.clientRating && (
+                        <Badge variant="outline" className="text-yellow-600">
+                          Rated {contract.clientRating}/5 ⭐
+                        </Badge>
+                      )}
                     </div>
                   </div>
                 </CardContent>
@@ -333,6 +373,89 @@ const ClientContractsPage: React.FC = () => {
                 </div>
               )}
             </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Rating Dialog */}
+      {ratingContract && (
+        <Dialog open={!!ratingContract} onOpenChange={() => setRatingContract(null)}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Rate Freelancer</DialogTitle>
+              <DialogDescription>
+                Rate your experience with{" "}
+                {ratingContract.freelancer?.freelancerUser?.firstName || ratingContract.freelancer?.firstName}{" "}
+                {ratingContract.freelancer?.freelancerUser?.lastName || ratingContract.freelancer?.lastName}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-6 py-4">
+              {/* Star Rating */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Rating</label>
+                <div className="flex gap-2">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() => setRating(star)}
+                      onMouseEnter={() => setHoverRating(star)}
+                      onMouseLeave={() => setHoverRating(0)}
+                      className="focus:outline-none transition-transform hover:scale-110"
+                    >
+                      <Star
+                        className={`w-8 h-8 ${
+                          star <= (hoverRating || rating)
+                            ? "fill-yellow-400 text-yellow-400"
+                            : "text-gray-300"
+                        }`}
+                      />
+                    </button>
+                  ))}
+                </div>
+                {rating > 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    {rating} out of 5 stars
+                  </p>
+                )}
+              </div>
+
+              {/* Review Text */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Review (Optional)</label>
+                <Textarea
+                  placeholder="Share your experience working with this freelancer..."
+                  value={review}
+                  onChange={(e) => setReview(e.target.value)}
+                  rows={4}
+                  className="resize-none"
+                />
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setRatingContract(null)}
+                disabled={submittingRating}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={submitRating}
+                disabled={submittingRating || rating === 0}
+              >
+                {submittingRating ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Submitting...
+                  </>
+                ) : (
+                  "Submit Rating"
+                )}
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       )}

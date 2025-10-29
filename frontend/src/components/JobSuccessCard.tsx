@@ -22,7 +22,7 @@ const JobSuccessCard: React.FC = () => {
         <div className="flex space-x-[-3px]">
           <span className="translate-x-0">
             <img
-              src="/images/av1½.png"
+              src="/images/av1.png"
               height={35}
               width={35}
               className="rounded-full"

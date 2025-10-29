@@ -5,10 +5,12 @@ import { FREELANCER_NAV_ITEMS } from "@/constants/navigation";
 
 function MessagePage() {
     return (
-        <>
+        <div className="flex flex-col h-screen overflow-hidden">
             <Header navItems={FREELANCER_NAV_ITEMS} showLogout />
-            <MessagingInterface />
-        </>
+            <div className="flex-1 overflow-hidden">
+                <MessagingInterface />
+            </div>
+        </div>
     );
 }
 

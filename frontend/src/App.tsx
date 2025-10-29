@@ -48,6 +48,7 @@ import AgencyFreelancerProfilePage from "./pages/Agency/AgencyFreelancerProfileP
 import AgencyJobSearchPage from "./pages/Agency/AgencyJobSearchPage";
 import AgencyMessagePage from "./pages/Agency/AgencyMessagePage";
 import GuestRoute from "./components/GuestRoute";
+import AgencyContractsPage from "./pages/Agency/AgencyContractsPage";
 
 function App() {
   const rtEnabled = (import.meta as any).env?.VITE_CENTRIFUGO_ENABLED === 'true';
@@ -83,6 +84,12 @@ function App() {
 
           {/* Freelancer-only routes */}
           <Route path="/freelancerhomepage" element={<ProtectedRoute element={<Homepage />} allowedRoles={["freelancer"]} />} />
+          <Route path="/freelancer/homepage" element={<ProtectedRoute element={<Homepage />} allowedRoles={["freelancer"]} />} />
+          <Route path="/freelancer/jobs" element={<ProtectedRoute element={<JobsPage />} allowedRoles={["freelancer"]} />} />
+          <Route path="/freelancer/jobs/:id" element={<ProtectedRoute element={<JobApplyPage />} allowedRoles={["freelancer"]} />} />
+          <Route path="/freelancer/profile" element={<ProtectedRoute element={<FreeLancerProfile />} allowedRoles={["freelancer"]} />} />
+          <Route path="/freelancer/applications" element={<ProtectedRoute element={<ApplicationsPage />} allowedRoles={["freelancer"]} />} />
+          <Route path="/freelancer/contracts" element={<ProtectedRoute element={<ContractsPage />} allowedRoles={["freelancer"]} />} />
 
           <Route
             path="/apply/:jobId"
@@ -150,6 +157,22 @@ function App() {
           <Route
             path="/agency/freelancers/:id"
             element={<ProtectedRoute element={<AgencyFreelancerProfilePage />} allowedRoles={["agency"]} />}
+          />
+          <Route
+            path="/agency/contracts"
+            element={<ProtectedRoute element={<AgencyContractsPage />} allowedRoles={["agency"]} />}
+          />
+          <Route
+            path="/agency/jobs/new"
+            element={<ProtectedRoute element={<AgencyJobsPage />} allowedRoles={["agency"]} />}
+          />
+          <Route
+            path="/agency/jobs/:id"
+            element={<ProtectedRoute element={<AgencyJobSearchPage />} allowedRoles={["agency"]} />}
+          />
+          <Route
+            path="/agency/jobs/:id/applications"
+            element={<ProtectedRoute element={<AgencyJobsPage />} allowedRoles={["agency"]} />}
           />
           <Route
             path="/agencymessages"

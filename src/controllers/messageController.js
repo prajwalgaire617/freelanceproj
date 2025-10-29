@@ -10,19 +10,42 @@ const novuService = require('../services/novuService');
 const sendMessage = asyncHandler(async (req, res) => {
   console.log('🔵 sendMessage called - receiverId:', req.body.receiverId, 'senderId:', req.userId);
   
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
-  }
-
-  const {
+  // Parse body - could be JSON or multipart form data
+  let {
     receiverId,
     content,
     messageType = 'text',
-    attachments = [],
     contractId,
     jobApplicationId
   } = req.body;
+
+  // Handle file uploads from multer
+  let attachments = [];
+  if (req.files && req.files.length > 0) {
+    // Get base URL from environment or construct from request
+    const baseUrl = process.env.API_URL || `${req.protocol}://${req.get('host')}`;
+    
+    attachments = req.files.map(file => ({
+      filename: file.filename,
+      originalName: file.originalname,
+      mimetype: file.mimetype,
+      size: file.size,
+      url: `${baseUrl}/uploads/messages/${file.filename}`
+    }));
+    
+    // Auto-detect message type based on first file
+    if (!messageType || messageType === 'text') {
+      messageType = req.files[0].mimetype.startsWith('image/') ? 'image' : 'file';
+    }
+  } else if (req.body.attachments) {
+    // Parse attachments from JSON if provided
+    attachments = typeof req.body.attachments === 'string' 
+      ? JSON.parse(req.body.attachments) 
+      : req.body.attachments;
+  }
+
+  // Convert receiverId to number if it's a string
+  receiverId = parseInt(receiverId);
 
   const senderId = req.userId;
 
@@ -114,6 +137,7 @@ const sendMessage = asyncHandler(async (req, res) => {
       receiverId: messageWithDetails.receiverId,
       content: messageWithDetails.content,
       messageType: messageWithDetails.messageType,
+      attachments: messageWithDetails.attachments,
       sentAt: messageWithDetails.sentAt,
       sender: {
         id: messageWithDetails.sender.id,
@@ -229,9 +253,28 @@ const getConversation = asyncHandler(async (req, res) => {
   // Reverse to show oldest first in UI (chat convention)
   messages.rows.reverse();
 
-  console.log(`✅ Found ${messages.count} messages, returning ${messages.rows.length} messages`);
-  if (messages.rows.length > 0) {
-    console.log(`📨 Latest message: ID=${messages.rows[messages.rows.length - 1].id}, content="${messages.rows[messages.rows.length - 1].content?.substring(0, 30)}"`);
+  // Transform attachment URLs to absolute URLs
+  const baseUrl = process.env.API_URL || `${req.protocol}://${req.get('host')}`;
+  const transformedMessages = messages.rows.map(msg => {
+    const messageData = msg.toJSON();
+    if (messageData.attachments && Array.isArray(messageData.attachments)) {
+      messageData.attachments = messageData.attachments.map(attachment => {
+        // If URL is relative, make it absolute
+        if (attachment.url && attachment.url.startsWith('/')) {
+          return {
+            ...attachment,
+            url: `${baseUrl}${attachment.url}`
+          };
+        }
+        return attachment;
+      });
+    }
+    return messageData;
+  });
+
+  console.log(`✅ Found ${messages.count} messages, returning ${transformedMessages.length} messages`);
+  if (transformedMessages.length > 0) {
+    console.log(`📨 Latest message: ID=${transformedMessages[transformedMessages.length - 1].id}, content="${transformedMessages[transformedMessages.length - 1].content?.substring(0, 30)}"`);
   }
 
   // Mark messages as read
@@ -247,7 +290,7 @@ const getConversation = asyncHandler(async (req, res) => {
   );
 
   res.json({
-    messages: messages.rows,
+    messages: transformedMessages,
     pagination: {
       currentPage: parseInt(page),
       totalPages: Math.ceil(messages.count / parseInt(limit)),
@@ -287,8 +330,23 @@ const getContractMessages = asyncHandler(async (req, res) => {
     order: [['sentAt', 'ASC']]
   });
 
+  // Transform attachment URLs to absolute URLs
+  const baseUrl = process.env.API_URL || `${req.protocol}://${req.get('host')}`;
+  const transformedMessages = messages.rows.map(msg => {
+    const messageData = msg.toJSON();
+    if (messageData.attachments && Array.isArray(messageData.attachments)) {
+      messageData.attachments = messageData.attachments.map(attachment => {
+        if (attachment.url && attachment.url.startsWith('/')) {
+          return { ...attachment, url: `${baseUrl}${attachment.url}` };
+        }
+        return attachment;
+      });
+    }
+    return messageData;
+  });
+
   res.json({
-    messages: messages.rows,
+    messages: transformedMessages,
     pagination: {
       currentPage: parseInt(page),
       totalPages: Math.ceil(messages.count / parseInt(limit)),
@@ -331,8 +389,23 @@ const getJobApplicationMessages = asyncHandler(async (req, res) => {
     order: [['sentAt', 'ASC']]
   });
 
+  // Transform attachment URLs to absolute URLs
+  const baseUrl = process.env.API_URL || `${req.protocol}://${req.get('host')}`;
+  const transformedMessages = messages.rows.map(msg => {
+    const messageData = msg.toJSON();
+    if (messageData.attachments && Array.isArray(messageData.attachments)) {
+      messageData.attachments = messageData.attachments.map(attachment => {
+        if (attachment.url && attachment.url.startsWith('/')) {
+          return { ...attachment, url: `${baseUrl}${attachment.url}` };
+        }
+        return attachment;
+      });
+    }
+    return messageData;
+  });
+
   res.json({
-    messages: messages.rows,
+    messages: transformedMessages,
     pagination: {
       currentPage: parseInt(page),
       totalPages: Math.ceil(messages.count / parseInt(limit)),

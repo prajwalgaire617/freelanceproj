@@ -250,6 +250,23 @@ module.exports = (sequelize, DataTypes) => {
             disputeResolution: {
                 type: DataTypes.TEXT,
                 allowNull: true,
+            },
+            // Rating system - client rates freelancer
+            clientRating: {
+                type: DataTypes.DECIMAL(2, 1),
+                allowNull: true,
+                validate: {
+                    min: 1.0,
+                    max: 5.0
+                }
+            },
+            clientReview: {
+                type: DataTypes.TEXT,
+                allowNull: true,
+            },
+            ratedAt: {
+                type: DataTypes.DATE,
+                allowNull: true,
             }
 
         },
