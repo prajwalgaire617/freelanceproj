@@ -20,6 +20,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/context/AuthContext";
 import axiosInstance from "@/api/axios";
+import OTPVerification from "@/components/OTPVerification";
 import OAuthButtons from "@/components/auth/OAuthButtons";
 
 interface RegisterFormProps extends React.ComponentProps<"div"> {}
@@ -55,6 +56,8 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ className, ...props 
   const [success, setSuccess] = useState<string>("");
   const [oauthLoading, setOauthLoading] = useState(false);
   const [oauthConfig, setOauthConfig] = useState({ googleEnabled: false, facebookEnabled: false, appleEnabled: false });
+  const [showOTP, setShowOTP] = useState(false);
+  const [registeredEmail, setRegisteredEmail] = useState<string>("");
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
@@ -98,20 +101,17 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ className, ...props 
         userType: formData.userType,
       });
 
+      if (response.data.requiresVerification) {
+        setRegisteredEmail(formData.email);
+        setShowOTP(true);
+        setSuccess(response.data.message || "We sent a verification code to your email.");
+        return;
+      }
+
       const { user, token, sessionId, expiresAt } = response.data;
-
-      // Create session data object
-      const sessionData = {
-        sessionId,
-        expiresAt
-      };
-
-      // Auto-login after registration
+      const sessionData = { sessionId, expiresAt };
       login(user, token, sessionData);
-
       setSuccess(response.data.message || "Account created successfully!");
-      
-      // Redirect based on role
       setTimeout(() => {
         if (user.userType === "freelancer") navigate("/freelancerhomepage");
         else if (user.userType === "client") navigate("/clienthomepage");
@@ -136,6 +136,17 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ className, ...props 
       setLoading(false);
     }
   };
+
+  if (showOTP && registeredEmail) {
+    return (
+      <OTPVerification
+        email={registeredEmail}
+        type="email"
+        onBack={() => setShowOTP(false)}
+        onVerificationSuccess={() => navigate('/login')}
+      />
+    );
+  }
 
   // OAuth handlers
   const handleGoogleLogin = () => {

@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { Send, Paperclip, X, FileText, Download, Loader2 } from "lucide-react";
+import { Send, Paperclip, X, FileText, Download, Loader2, Video } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Virtuoso } from "react-virtuoso";
 import axiosInstance from "@/api/axios";
@@ -12,12 +12,15 @@ import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import centrifugoService from "@/services/centrifugo";
 import { ContractMessage } from "./ContractMessage";
+import { VideoCallModal } from "./VideoCallModal";
+import { VideoCallInvitation } from "./VideoCallInvitation";
 
 interface Message {
   id: number | string;
   sender: "me" | "them";
   text: string;
   time: string;
+<<<<<<< HEAD
   files?: { 
     filename?: string;
     originalName?: string;
@@ -28,6 +31,10 @@ interface Message {
     size?: number;
   }[];
   messageType?: 'text' | 'image' | 'file' | 'contract';
+=======
+  files?: { name: string; type: string; url: string }[];
+  messageType?: 'text' | 'image' | 'file' | 'contract' | 'video_call';
+>>>>>>> 2700a08 (till otp)
   contractId?: number;
   content?: string; // Raw content for contract messages
 }
@@ -44,6 +51,8 @@ export function MessagingInterface() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const targetUserId = searchParams.get("userId");
+  const startVideo = searchParams.get("startVideo");
+  const startRoom = searchParams.get("room");
   const { user } = useAuth();
   
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -52,6 +61,84 @@ export function MessagingInterface() {
   const [attachments, setAttachments] = useState<File[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingConversations, setLoadingConversations] = useState(false);
+  const [showVideoCall, setShowVideoCall] = useState(false);
+  const [videoCallRoomName, setVideoCallRoomName] = useState("");
+  const ENV: any = (import.meta as any).env || {};
+  const configuredDomain: string = ENV.VITE_JITSI_DOMAIN || 'meet.jit.si';
+  const providedJwt: string | undefined = ENV.VITE_JITSI_JWT;
+  const isJaasDomain = /(^|\.)8x8\.vc$|jaas/.test(configuredDomain);
+  const jitsiDomain = (isJaasDomain && !providedJwt) ? 'meet.jit.si' : configuredDomain;
+  // Default to opening in a new tab unless explicitly disabled
+  const openInNewTab = ENV.VITE_JITSI_OPEN_IN_NEW_TAB !== 'false';
+  const prejoinEnabled = ENV.VITE_JITSI_PREJOIN_ENABLED === 'true';
+
+  const buildJitsiUrl = async (room: string, moderator: boolean): Promise<string> => {
+    const baseDomain = jitsiDomain.includes('://') ? jitsiDomain : `https://${jitsiDomain}`;
+    if (isJaasDomain) {
+      const appId = ENV.VITE_JITSI_APP_ID; // required for JAAS path prefix
+      const pathPrefix = appId ? `/vpaas-magic-cookie-${appId}` : '';
+      let token = providedJwt as string | undefined;
+      if (!token) {
+        // Fetch a short-lived token from backend
+        const resp = await fetch(`/api/jitsi/token?room=${encodeURIComponent(room)}&moderator=${moderator}&userName=${encodeURIComponent(`${user?.firstName || ''} ${user?.lastName || ''}`.trim())}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          token = data.token;
+        } else {
+          console.error('Failed to fetch JAAS token:', await resp.text());
+        }
+      }
+      const base = `${baseDomain.replace(/\/$/, '')}${pathPrefix}`;
+      const jwtQuery = token ? `?jwt=${encodeURIComponent(token)}` : '';
+      return `${base}/${encodeURIComponent(room)}${jwtQuery}#config.prejoinPageEnabled=${prejoinEnabled}&config.prejoinConfig.enabled=${prejoinEnabled}`;
+    }
+    // meet.jit.si or self-hosted Jitsi
+    const base = baseDomain.replace(/\/$/, '');
+    return `${base}/${encodeURIComponent(room)}#config.prejoinPageEnabled=${prejoinEnabled}&config.prejoinConfig.enabled=${prejoinEnabled}`;
+  };
+
+  // Open in new tab with popup-safety: if delayed, open a blank tab synchronously then navigate later
+  const openJitsiInNewTab = async (room: string, moderator: boolean, delayMs = 0) => {
+    try {
+      // For meet.jit.si or self-hosted domains, build URL synchronously and open immediately
+      if (!isJaasDomain) {
+        const baseDomain = jitsiDomain.includes('://') ? jitsiDomain : `https://${jitsiDomain}`;
+        const base = baseDomain.replace(/\/$/, '');
+        const url = `${base}/${encodeURIComponent(room)}#config.prejoinPageEnabled=${prejoinEnabled}&config.prejoinConfig.enabled=${prejoinEnabled}`;
+        window.open(url, '_blank', 'noopener');
+        return;
+      }
+
+      // JAAS: open a blank tab immediately (user gesture), then navigate after token is ready
+      const win = window.open('about:blank', '_blank', 'noopener');
+      try {
+        if (win && !win.closed) {
+          win.document.write('<!doctype html><title>Joining…</title><body style="font-family:sans-serif;padding:24px">Joining your call…</body>');
+        }
+      } catch {}
+
+      const nav = async () => {
+        try {
+          const url = await buildJitsiUrl(room, moderator);
+          if (win && !win.closed) win.location.href = url;
+        } catch (e) {
+          console.error('Failed to navigate Jitsi window:', e);
+          try { if (win && !win.closed) win.close(); } catch {}
+        }
+      };
+
+      if (delayMs > 0) {
+        window.setTimeout(nav, delayMs);
+      } else {
+        nav();
+      }
+    } catch (e) {
+      console.error('Failed to open Jitsi URL:', e);
+    }
+  };
 
   const centrifugoEnabled = (import.meta as any).env?.VITE_CENTRIFUGO_ENABLED === 'true';
   const hasInitialized = useRef(false);
@@ -114,9 +201,17 @@ export function MessagingInterface() {
     if (targetUserId && user && conversations.length > 0 && !urlProcessed.current) {
       console.log(`🔗 Opening conversation from URL: ${targetUserId}`);
       urlProcessed.current = true;
-      initiateConversationWithUser(parseInt(targetUserId));
-      // Clear the URL parameter after using it
-      setSearchParams({});
+      const parsedId = parseInt(targetUserId);
+      initiateConversationWithUser(parsedId).then(() => {
+        // If request came from incoming call, auto-open modal
+        if (startVideo === '1' && typeof startRoom === 'string' && startRoom.length > 0) {
+          console.log('🎥 Auto-opening video modal from URL params');
+          setVideoCallRoomName(startRoom);
+          setShowVideoCall(true);
+        }
+        // Clear the URL parameter after using it
+        setSearchParams({});
+      });
     } else if (!selectedConversationId && conversations.length > 0 && !targetUserId) {
       setSelectedConversationId(conversations[0].id);
     }
@@ -367,6 +462,33 @@ export function MessagingInterface() {
   };
 
   // 📤 Send message via API (backend will broadcast via Centrifugo)
+  const sendVideoCallInvitation = async (roomName: string) => {
+    if (!selectedConversationId || !user) return;
+
+    try {
+      const token = localStorage.getItem("token");
+      await axiosInstance.post(
+        '/messages',
+        {
+          receiverId: selectedConversationId,
+          content: JSON.stringify({
+            type: 'video_call_invitation',
+            roomName,
+            callerName: `${user.firstName} ${user.lastName}`,
+            callerId: user.id
+          }),
+          messageType: 'video_call'
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+      toast.success("Video call invitation sent");
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || "Failed to send video call invitation");
+    }
+  };
+
   const sendMessage = async () => {
     if (!message.trim() && attachments.length === 0) return;
     if (!selectedConversationId) return;
@@ -522,6 +644,7 @@ export function MessagingInterface() {
       </Card>
 
       {/* Chat Area */}
+<<<<<<< HEAD
       <Card className="md:col-span-2 flex flex-col h-full overflow-hidden min-w-0">
         <CardHeader className="border-b flex-shrink-0">
           <div className="flex items-center gap-3">
@@ -544,6 +667,41 @@ export function MessagingInterface() {
             >
               {selectedConversation.name}
             </CardTitle>
+=======
+      <Card className="md:col-span-2 flex flex-col overflow-y-auto">
+        <CardHeader className="border-b">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Avatar>
+                <AvatarImage src={selectedConversation.img} />
+                <AvatarFallback>{selectedConversation.name[0]}</AvatarFallback>
+              </Avatar>
+              <CardTitle>{selectedConversation.name}</CardTitle>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const userId = Number(user!.id);
+                const otherUserId = selectedConversationId!;
+                // Use a unique room per call attempt to avoid stale lobby/membersOnly state
+                const roomName = `worklab-call-${Math.min(userId, otherUserId)}-${Math.max(userId, otherUserId)}-${Date.now()}`;
+                setVideoCallRoomName(roomName);
+                if (openInNewTab) {
+                  openJitsiInNewTab(roomName, true, 0);
+                } else {
+                  setShowVideoCall(true);
+                }
+                
+                // Send video call invitation message
+                sendVideoCallInvitation(roomName);
+              }}
+              className="flex items-center gap-2"
+            >
+              <Video className="w-4 h-4" />
+              Start Video Call
+            </Button>
+>>>>>>> 2700a08 (till otp)
           </div>
         </CardHeader>
 
@@ -563,6 +721,25 @@ export function MessagingInterface() {
                       data={JSON.parse(msg.content)} 
                       contractId={msg.contractId}
                       isSender={msg.sender === "me"}
+                    />
+                  </div>
+                ) : msg.messageType === 'video_call' && msg.content ? (
+                  <div className="max-w-[70%]">
+                    <VideoCallInvitation
+                      data={JSON.parse(msg.content)}
+                      isSender={msg.sender === "me"}
+                      onJoinCall={(roomName) => {
+                        setVideoCallRoomName(roomName);
+                        if (openInNewTab) {
+                          // If this user is the receiver (not the sender), delay join slightly
+                          const isSender = msg.sender === 'me';
+                          // Apply delay only for JAAS to let caller become moderator; not needed for meet.jit.si here
+                          const delayMs = (!isJaasDomain || isSender) ? 0 : 1500;
+                          openJitsiInNewTab(roomName, isSender, delayMs);
+                        } else {
+                          setShowVideoCall(true);
+                        }
+                      }}
                     />
                   </div>
                 ) : (
@@ -670,6 +847,21 @@ export function MessagingInterface() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Video Call Modal */}
+      {showVideoCall && (
+        <VideoCallModal
+          isOpen={showVideoCall}
+          onClose={() => setShowVideoCall(false)}
+          roomName={videoCallRoomName}
+          userName={`${user?.firstName} ${user?.lastName}`}
+          conversationId={selectedConversationId || undefined}
+          onCallEnd={() => {
+            setShowVideoCall(false);
+            toast.info("Call ended");
+          }}
+        />
+      )}
     </div>
   );
 }

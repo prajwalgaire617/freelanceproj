@@ -3,19 +3,19 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, ArrowLeft, Mail } from 'lucide-react';
+import { Loader2, Mail, ArrowLeft } from 'lucide-react';
 import OTPVerification from '@/components/OTPVerification';
-import NewPasswordForm from '@/components/NewPasswordForm';
+import { useAuth } from '@/context/AuthContext';
 import axiosInstance from '@/api/axios';
 
-const ForgotPassword: React.FC = () => {
+const LoginWithCode: React.FC = () => {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [step, setStep] = useState<'email' | 'otp' | 'password'>('email');
-  const [otpData, setOtpData] = useState<{ email: string; otp: string } | null>(null);
+  const [step, setStep] = useState<'email' | 'otp'>('email');
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,32 +23,33 @@ const ForgotPassword: React.FC = () => {
     setLoading(true);
 
     try {
-      const { data } = await axiosInstance.post('/auth/forgot-password', { email });
-      setSuccess(data.message || 'Reset code sent to your email');
+      const { data } = await axiosInstance.post('/auth/login/otp/request', { email });
+      setSuccess(data.message || 'Login code sent');
       setStep('otp');
     } catch (err: any) {
       const apiError = err?.response?.data?.error || err?.response?.data?.message;
-      setError(apiError || 'Failed to send reset code');
+      setError(apiError || 'Failed to send login code');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleOTPSuccess = (data: any) => {
-    setOtpData({ email, otp: data.otp });
-    setStep('password');
-  };
-
-  const handlePasswordSuccess = () => {
-    navigate('/login');
+  const handleOTPSuccess = (payload: any) => {
+    // payload contains { message, token, sessionId, expiresAt, user }
+    if (payload?.user && payload?.token) {
+      const sessionData = { sessionId: payload.sessionId, expiresAt: payload.expiresAt };
+      login(payload.user, payload.token, sessionData);
+      const user = payload.user;
+      if (user.userType === 'freelancer') navigate('/freelancerhomepage');
+      else if (user.userType === 'client') navigate('/clienthomepage');
+      else if (user.userType === 'agency') navigate('/agencyhomepage');
+      else navigate('/');
+    }
   };
 
   const handleBack = () => {
-    if (step === 'otp') {
-      setStep('email');
-    } else if (step === 'password') {
-      setStep('otp');
-    }
+    if (step === 'otp') setStep('email');
+    else navigate('/login');
   };
 
   if (step === 'otp') {
@@ -57,18 +58,7 @@ const ForgotPassword: React.FC = () => {
         email={email}
         onVerificationSuccess={handleOTPSuccess}
         onBack={handleBack}
-        type="password"
-      />
-    );
-  }
-
-  if (step === 'password' && otpData) {
-    return (
-      <NewPasswordForm
-        email={otpData.email}
-        otp={otpData.otp}
-        onSuccess={handlePasswordSuccess}
-        onBack={handleBack}
+        type="login"
       />
     );
   }
@@ -81,9 +71,9 @@ const ForgotPassword: React.FC = () => {
             <div className="mx-auto w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-4">
               <Mail className="w-6 h-6 text-blue-600" />
             </div>
-            <CardTitle className="text-2xl">Forgot Password?</CardTitle>
+            <CardTitle className="text-2xl">Login with Email Code</CardTitle>
             <CardDescription>
-              Enter your email address and we'll send you a code to reset your password
+              Enter your email and we'll send you a one-time code to sign in
             </CardDescription>
           </CardHeader>
 
@@ -116,18 +106,14 @@ const ForgotPassword: React.FC = () => {
                 </div>
               )}
 
-              <Button
-                type="submit"
-                className="w-full"
-                disabled={loading || !email}
-              >
+              <Button type="submit" className="w-full" disabled={loading || !email}>
                 {loading ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     Sending Code...
                   </>
                 ) : (
-                  'Send Reset Code'
+                  'Send Login Code'
                 )}
               </Button>
 
@@ -139,7 +125,7 @@ const ForgotPassword: React.FC = () => {
                   className="text-gray-600 hover:text-gray-800"
                 >
                   <ArrowLeft className="w-4 h-4 mr-2" />
-                  Back to Login
+                  Back to Password Login
                 </Button>
               </div>
             </form>
@@ -150,4 +136,4 @@ const ForgotPassword: React.FC = () => {
   );
 };
 
-export default ForgotPassword;
+export default LoginWithCode;

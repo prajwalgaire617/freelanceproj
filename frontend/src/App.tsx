@@ -3,6 +3,7 @@ import { Toaster } from "sonner";
 import Homepage from "./pages/Freelancer/Homepage";
 import JobsPage from "./pages/Freelancer/JobsPage";
 import LoginPage from "./pages/login";
+import LoginWithCode from "./pages/LoginWithCode";
 import SignUpPage from "./pages/signup";
 import ForgotPassword from "./pages/ForgotPassword";
 import JobApplyPage from "./pages/Freelancer/JobApplyPage";
@@ -74,6 +75,7 @@ function App() {
           <Route path="/enterprise" element={<Enterprise />} />
           <Route path="/reviews" element={<Reviews />} />
           <Route path="/login" element={<GuestRoute element={<LoginPage />} />} />
+          <Route path="/login/code" element={<GuestRoute element={<LoginWithCode />} />} />
           <Route path="/signup" element={<GuestRoute element={<SignUpPage />} />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/auth/callback" element={<OAuthCallback />} />

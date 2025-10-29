@@ -3,6 +3,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Loader2, Lock, Eye, EyeOff } from 'lucide-react';
+import axiosInstance from '@/api/axios';
 
 interface NewPasswordFormProps {
   email: string;
@@ -64,30 +65,19 @@ const NewPasswordForm: React.FC<NewPasswordFormProps> = ({
     setLoading(true);
 
     try {
-      const response = await fetch('/api/auth/reset-password', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email,
-          otp,
-          password: formData.password
-        }),
+      await axiosInstance.post('/auth/reset-password', {
+        email,
+        otp,
+        password: formData.password
       });
 
-      const data = await response.json();
-
-      if (response.ok) {
-        setSuccess('Password reset successfully! You can now login with your new password.');
-        setTimeout(() => {
-          onSuccess();
-        }, 2000);
-      } else {
-        setError(data.error || 'Password reset failed');
-      }
-    } catch (error) {
-      setError('Network error. Please try again.');
+      setSuccess('Password reset successfully! You can now login with your new password.');
+      setTimeout(() => {
+        onSuccess();
+      }, 2000);
+    } catch (err: any) {
+      const apiError = err?.response?.data?.error || err?.response?.data?.message;
+      setError(apiError || 'Password reset failed');
     } finally {
       setLoading(false);
     }

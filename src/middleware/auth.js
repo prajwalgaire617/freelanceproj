@@ -248,6 +248,17 @@ const rateLimitSensitive = (maxAttempts = 5, windowMs = 15 * 60 * 1000) => {
   };
 };
 
+// @desc    Require admin role
+// @access  Private
+const requireAdmin = (req, res, next) => {
+  if (req.userType !== 'admin') {
+    return res.status(403).json({ 
+      error: 'Access denied. Admin privileges required.' 
+    });
+  }
+  next();
+};
+
 module.exports = {
   authenticateToken,
   requireEmailVerification,
@@ -257,6 +268,7 @@ module.exports = {
   requireAgency,
   requireFreelancerOrAgency,
   requireClientOrAgency,
+  requireAdmin,
   optionalAuth,
   requireOwnership,
   requireContractAccess,

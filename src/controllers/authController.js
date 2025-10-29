@@ -11,6 +11,7 @@ const sessionService = require('../services/sessionService');
 const emailService = require('../services/emailService');
 const { Novu } = require('@novu/node');
 const novu = new Novu(process.env.NOVU_API_KEY || 'a709df8448e3f85dc113d808f3d1c5a5');
+const REQUIRE_LOGIN_OTP = process.env.REQUIRE_LOGIN_OTP !== 'false';
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
@@ -61,6 +62,9 @@ const generateToken = (id) => {
     expiresIn: '30d',
   });
 };
+
+// Normalize email helper to avoid case/whitespace issues
+const normalizeEmail = (e) => (typeof e === 'string' ? e.trim().toLowerCase() : e);
 
 // Create email verification token
 const generateEmailVerificationToken = () => {
@@ -146,13 +150,16 @@ const register = asyncHandler(async (req, res) => {
     companyWebsite
   } = req.body;
 
-  // Check if user already exists
-  const userExists = await db.User.findOne({ where: { email } });
+  // Normalize email and check if user already exists
+  const normalizedEmail = normalizeEmail(email);
+  const userExists = await db.User.findOne({ where: { email: normalizedEmail } });
   if (userExists) {
     return res.status(400).json({ error: 'User already exists' });
   }
 
-  // Email verification disabled: no OTP generation
+  // Generate email verification OTP
+  const emailVerificationOTP = emailService.generateOTP();
+  const emailVerificationOTPExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
   // Handle profile image upload
   let profileImagePath = null;
@@ -175,9 +182,9 @@ const register = asyncHandler(async (req, res) => {
     return res.status(400).json({ error: 'Invalid JSON format for experiences or payment options' });
   }
 
-  // Create user (mark email as verified and skip OTP fields)
+  // Create user (email not verified yet, store OTP fields)
   const user = await db.User.create({
-    email,
+    email: normalizedEmail,
     password,
     firstName,
     lastName,
@@ -189,7 +196,9 @@ const register = asyncHandler(async (req, res) => {
     companyName,
     companyWebsite,
     profileImage: profileImagePath,
-    isEmailVerified: true,
+    isEmailVerified: false,
+    emailVerificationOTP,
+    emailVerificationOTPExpires,
     connectBalance: 20, // Give 20 free connects on signup
   });
 
@@ -249,34 +258,17 @@ const register = asyncHandler(async (req, res) => {
     }
   });
 
-  // Email verification disabled: do not send OTP email
-
-  // Create session for new user
-  const userAgent = req.get('User-Agent') || '';
-  const ipAddress = req.ip || req.connection.remoteAddress || '';
-  
-  const sessionData = await sessionService.createSession(
-    user.id, 
-    userAgent, 
-    ipAddress
-  );
+  // Send verification OTP email
+  try {
+    await emailService.sendVerificationOTP(user.email, emailVerificationOTP, user.firstName);
+  } catch (error) {
+    console.error('Error sending verification OTP on register:', error);
+  }
 
   res.status(201).json({
-    message: 'User registered successfully. You received 20 free connects! You are now logged in.',
-    token: sessionData.token,
-    sessionId: sessionData.sessionId,
-    expiresAt: sessionData.expiresAt,
-    user: {
-      id: user.id,
-      uuid: user.uuid,
-      email: user.email,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      userType: user.userType,
-      isEmailVerified: user.isEmailVerified,
-      connectBalance: user.connectBalance,
-    },
-    requiresVerification: false,
+    message: 'User registered successfully. We sent a verification code to your email. You received 20 free connects!',
+    requiresVerification: true,
+    email: user.email,
   });
 });
 
@@ -290,9 +282,10 @@ const login = asyncHandler(async (req, res) => {
   }
 
   const { email, password } = req.body;
+  const normalizedEmail = normalizeEmail(email);
 
   // Check if user exists
-  const user = await db.User.findOne({ where: { email } });
+  const user = await db.User.findOne({ where: { email: normalizedEmail } });
   if (!user) {
     return res.status(401).json({ error: 'Invalid credentials' });
   }
@@ -308,18 +301,54 @@ const login = asyncHandler(async (req, res) => {
     return res.status(401).json({ error: 'Account is deactivated' });
   }
 
-  // Update last login
-  await user.update({ lastLogin: new Date() });
+  // Block login until email is verified
+  if (!user.isEmailVerified) {
+    return res.status(403).json({
+      error: 'Please verify your email to sign in',
+      requiresVerification: true,
+      email: user.email,
+    });
+  }
 
-  // Create session (this will invalidate any existing sessions)
+  // If OTP is required for login, send code and stop here
+  if (REQUIRE_LOGIN_OTP) {
+    const now = new Date();
+    const lastAttempt = user.otpLastAttempt;
+    const attempts = user.otpAttempts || 0;
+    // reset hourly window
+    if (!lastAttempt || (now - lastAttempt) > 60 * 60 * 1000) {
+      await user.update({ otpAttempts: 0 });
+    } else if (attempts >= 3) {
+      return res.status(429).json({ error: 'Too many OTP requests. Please try again later.' });
+    }
+
+    const loginOTP = emailService.generateOTP();
+    const loginOTPExpires = new Date(Date.now() + 10 * 60 * 1000);
+    await user.update({
+      loginOTP,
+      loginOTPExpires,
+      otpAttempts: attempts + 1,
+      otpLastAttempt: now,
+    });
+
+    try {
+      await emailService.sendLoginOTP(user.email, loginOTP, user.firstName);
+    } catch (e) {
+      return res.status(500).json({ error: 'Failed to send login code' });
+    }
+
+    return res.json({
+      requiresOTP: true,
+      message: 'We sent a login code to your email',
+      email: user.email,
+    });
+  }
+
+  // Otherwise, proceed to create session immediately
+  await user.update({ lastLogin: new Date() });
   const userAgent = req.get('User-Agent') || '';
   const ipAddress = req.ip || req.connection.remoteAddress || '';
-  
-  const sessionData = await sessionService.createSession(
-    user.id, 
-    userAgent, 
-    ipAddress
-  );
+  const sessionData = await sessionService.createSession(user.id, userAgent, ipAddress);
 
   res.json({
     message: 'Login successful',
@@ -344,6 +373,7 @@ const login = asyncHandler(async (req, res) => {
 // @access  Public
 const verifyEmail = asyncHandler(async (req, res) => {
   const { email, otp } = req.body;
+  const normalizedEmail = normalizeEmail(email);
 
   if (!email || !otp) {
     return res.status(400).json({ error: 'Email and OTP are required' });
@@ -352,7 +382,7 @@ const verifyEmail = asyncHandler(async (req, res) => {
   // Find user with valid OTP
   const user = await db.User.findOne({
     where: {
-      email,
+      email: normalizedEmail,
       emailVerificationOTP: otp,
       emailVerificationOTPExpires: {
         [db.Sequelize.Op.gt]: new Date(),
@@ -410,8 +440,9 @@ const verifyEmail = asyncHandler(async (req, res) => {
 // @access  Public
 const resendVerification = asyncHandler(async (req, res) => {
   const { email } = req.body;
+  const normalizedEmail = normalizeEmail(email);
 
-  const user = await db.User.findOne({ where: { email } });
+  const user = await db.User.findOne({ where: { email: normalizedEmail } });
   if (!user) {
     return res.status(404).json({ error: 'User not found' });
   }
@@ -445,12 +476,144 @@ const resendVerification = asyncHandler(async (req, res) => {
 
   // Send verification OTP email
   try {
-    await emailService.sendVerificationOTP(email, emailVerificationOTP, user.firstName);
+  await emailService.sendVerificationOTP(user.email, emailVerificationOTP, user.firstName);
     res.json({ message: 'Verification OTP sent successfully' });
   } catch (error) {
     console.error('Error sending verification OTP:', error);
     res.status(500).json({ error: 'Failed to send verification OTP' });
   }
+});
+
+// @desc    Request login OTP (passwordless)
+// @route   POST /api/auth/login/otp/request
+// @access  Public
+const requestLoginOTP = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ error: 'Email is required' });
+  }
+
+  const normalizedEmail = normalizeEmail(email);
+  const user = await db.User.findOne({ where: { email: normalizedEmail } });
+  if (!user) {
+    // Don't reveal if user exists
+    return res.json({ message: 'If an account exists, a login code has been sent' });
+  }
+
+  if (!user.isActive) {
+    return res.status(401).json({ error: 'Account is deactivated' });
+  }
+
+  if (!user.isEmailVerified) {
+    return res.status(403).json({
+      error: 'Please verify your email before requesting a login code',
+      requiresVerification: true,
+      email: user.email,
+    });
+  }
+
+  // Rate limit: max 3 per hour
+  const now = new Date();
+  const lastAttempt = user.otpLastAttempt;
+  const attempts = user.otpAttempts || 0;
+
+  if (!lastAttempt || (now - lastAttempt) > 60 * 60 * 1000) {
+    await user.update({ otpAttempts: 0 });
+  } else if (attempts >= 3) {
+    return res.status(429).json({ error: 'Too many OTP requests. Please try again later.' });
+  }
+
+  const loginOTP = emailService.generateOTP();
+  const loginOTPExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+  await user.update({
+    loginOTP,
+    loginOTPExpires,
+    otpAttempts: attempts + 1,
+    otpLastAttempt: now,
+  });
+
+  try {
+    await emailService.sendLoginOTP(user.email, loginOTP, user.firstName);
+    res.json({ message: 'Login code sent successfully' });
+  } catch (error) {
+    console.error('Error sending login OTP:', error);
+    res.status(500).json({ error: 'Failed to send login code' });
+  }
+});
+
+// @desc    Verify login OTP and create session
+// @route   POST /api/auth/login/otp/verify
+// @access  Public
+const verifyLoginOTP = asyncHandler(async (req, res) => {
+  const { email, otp } = req.body;
+
+  if (!email || !otp) {
+    return res.status(400).json({ error: 'Email and OTP are required' });
+  }
+
+  const normalizedEmail = normalizeEmail(email);
+  const user = await db.User.findOne({
+    where: {
+      email: normalizedEmail,
+      loginOTP: otp,
+      loginOTPExpires: { [db.Sequelize.Op.gt]: new Date() },
+    },
+  });
+
+  if (!user) {
+    return res.status(400).json({ error: 'Invalid or expired OTP' });
+  }
+
+  if (!user.isEmailVerified) {
+    return res.status(403).json({
+      error: 'Please verify your email to sign in',
+      requiresVerification: true,
+      email: user.email,
+    });
+  }
+
+  // Additional brute-force guard
+  const now = new Date();
+  const lastAttempt = user.otpLastAttempt;
+  const attempts = user.otpAttempts || 0;
+  if (!lastAttempt || (now - lastAttempt) > 60 * 60 * 1000) {
+    await user.update({ otpAttempts: 0 });
+  } else if (attempts >= 5) {
+    return res.status(429).json({ error: 'Too many OTP attempts. Please try again later.' });
+  }
+
+  // Clear OTP fields
+  await user.update({
+    loginOTP: null,
+    loginOTPExpires: null,
+    otpAttempts: 0,
+    otpLastAttempt: null,
+    lastLogin: new Date(),
+  });
+
+  // Create session
+  const userAgent = req.get('User-Agent') || '';
+  const ipAddress = req.ip || req.connection.remoteAddress || '';
+  const sessionData = await sessionService.createSession(user.id, userAgent, ipAddress);
+
+  res.json({
+    message: 'Login successful',
+    token: sessionData.token,
+    sessionId: sessionData.sessionId,
+    expiresAt: sessionData.expiresAt,
+    user: {
+      id: user.id,
+      uuid: user.uuid,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      userType: user.userType,
+      isEmailVerified: user.isEmailVerified,
+      profileImage: user.profileImage,
+    },
+  });
 });
 
 // @desc    Forgot password
@@ -459,7 +622,8 @@ const resendVerification = asyncHandler(async (req, res) => {
 const forgotPassword = asyncHandler(async (req, res) => {
   const { email } = req.body;
 
-  const user = await db.User.findOne({ where: { email } });
+  const normalizedEmail = normalizeEmail(email);
+  const user = await db.User.findOne({ where: { email: normalizedEmail } });
   if (!user) {
     return res.status(404).json({ error: 'User not found' });
   }
@@ -489,7 +653,7 @@ const forgotPassword = asyncHandler(async (req, res) => {
 
   // Send password reset OTP email
   try {
-    await emailService.sendPasswordResetOTP(email, passwordResetOTP, user.firstName);
+    await emailService.sendPasswordResetOTP(user.email, passwordResetOTP, user.firstName);
     res.json({ message: 'Password reset OTP sent successfully' });
   } catch (error) {
     console.error('Error sending password reset OTP:', error);
@@ -508,9 +672,10 @@ const resetPassword = asyncHandler(async (req, res) => {
   }
 
   // Find user with valid OTP
+  const normalizedEmail = normalizeEmail(email);
   const user = await db.User.findOne({
     where: {
-      email,
+      email: normalizedEmail,
       passwordResetOTP: otp,
       passwordResetOTPExpires: {
         [db.Sequelize.Op.gt]: new Date(),
@@ -819,6 +984,8 @@ const notifyTest = asyncHandler(async (req, res) => {
 module.exports = { 
   register,
   login,
+  requestLoginOTP,
+  verifyLoginOTP,
   logout,
   logoutAll,
   getActiveSessions,

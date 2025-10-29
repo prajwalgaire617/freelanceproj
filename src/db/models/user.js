@@ -112,7 +112,7 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true
     },
     userType: {
-      type: DataTypes.ENUM('freelancer', 'client', 'agency'),
+      type: DataTypes.ENUM('freelancer', 'client', 'agency', 'admin'),
       allowNull: false
     },
     isEmailVerified: {
@@ -132,6 +132,39 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true
     },
     passwordResetExpires: {
+      type: DataTypes.DATE,
+      allowNull: true
+    },
+    // OTP fields
+    emailVerificationOTP: {
+      type: DataTypes.STRING,
+      allowNull: true
+    },
+    emailVerificationOTPExpires: {
+      type: DataTypes.DATE,
+      allowNull: true
+    },
+    passwordResetOTP: {
+      type: DataTypes.STRING,
+      allowNull: true
+    },
+    passwordResetOTPExpires: {
+      type: DataTypes.DATE,
+      allowNull: true
+    },
+    loginOTP: {
+      type: DataTypes.STRING,
+      allowNull: true
+    },
+    loginOTPExpires: {
+      type: DataTypes.DATE,
+      allowNull: true
+    },
+    otpAttempts: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0
+    },
+    otpLastAttempt: {
       type: DataTypes.DATE,
       allowNull: true
     },

@@ -34,6 +34,9 @@ const clientRoutes = require('./routes/clientRoutes');
 const jobPostRoutes = require('./routes/jobPostRoutes');
 const centrifugoRoutes = require('./routes/centrifugoRoutes');
 const novuRoutes = require('./routes/novuRoutes');
+const jitsiRoutes = require('./routes/jitsiRoutes');
+const callNoteRoutes = require('./routes/callNoteRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 
 // Initialize Express app
 const app = express();
@@ -158,6 +161,9 @@ app.use('/api/client', clientRoutes);
 app.use('/api/jobs', jobPostRoutes);
 app.use('/api/centrifugo', centrifugoRoutes);
 app.use('/api/novu', novuRoutes);
+app.use('/api/jitsi', jitsiRoutes);
+app.use('/api/call-notes', callNoteRoutes);
+app.use('/api/admin', adminRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {

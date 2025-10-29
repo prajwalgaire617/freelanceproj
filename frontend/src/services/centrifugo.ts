@@ -106,9 +106,28 @@ class CentrifugoService {
       }
       console.log('🔧 Using Centrifugo URL:', resolvedUrl);
 
+<<<<<<< HEAD
       // Skip health check - Centrifugo doesn't have a /health endpoint by default
       // We'll handle connection errors in the connection handlers instead
       console.log('⏭️ Skipping health check, proceeding directly to WebSocket connection');
+=======
+      // Optional: Preflight health check (disabled by default to avoid CORS noise in browser)
+      try {
+        const ENV: any = (import.meta as any).env || {};
+        const healthCheckEnabled = ENV.VITE_CENTRIFUGO_HEALTHCHECK_ENABLED === 'true';
+        if (healthCheckEnabled) {
+          const u = new URL(resolvedUrl);
+          const healthUrl = `${u.protocol.replace('ws', 'http')}//${u.host}/health`;
+          const ctl = new AbortController();
+          const t = setTimeout(() => ctl.abort(), 1500);
+          // Use no-cors to avoid CORS errors in dev; result will be opaque
+          await fetch(healthUrl, { signal: ctl.signal, mode: 'no-cors' as RequestMode });
+          clearTimeout(t);
+        }
+      } catch (_e) {
+        // Ignore health errors; proceed to WS connect regardless
+      }
+>>>>>>> 2700a08 (till otp)
 
       // Create Centrifuge client
       this.centrifuge = new Centrifuge(resolvedUrl, {

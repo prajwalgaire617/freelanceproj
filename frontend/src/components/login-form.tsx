@@ -47,20 +47,17 @@ export function LoginForm({ className, ...props }: React.ComponentProps<"div">) 
 
     try {
       const res = await axios.post("http://localhost:3000/api/auth/login", formData);
-      const { user, token, sessionId, expiresAt } = res.data;
+      const { user, token, sessionId, expiresAt, requiresOTP } = res.data;
 
-      // Create session data object
-      const sessionData = {
-        sessionId,
-        expiresAt
-      };
-
-      // Check if email verification is required
-      if (res.data.requiresVerification) {
-        setPendingUser({ user, token, sessionData });
+      // If backend requires OTP after password, open OTP screen (login mode)
+      if (requiresOTP) {
+        setPendingUser({ email: formData.email });
         setShowOTPVerification(true);
         return;
       }
+
+      // Create session data object
+      const sessionData = { sessionId, expiresAt };
 
       login(user, token, sessionData);
 
@@ -132,10 +129,23 @@ export function LoginForm({ className, ...props }: React.ComponentProps<"div">) 
   if (showOTPVerification && pendingUser) {
     return (
       <OTPVerification
-        email={pendingUser.user.email}
-        onVerificationSuccess={handleOTPVerificationSuccess}
+        email={pendingUser.email || pendingUser.user?.email}
+        onVerificationSuccess={(payload: any) => {
+          // If login OTP flow, payload contains full session
+          if (payload?.token && payload?.user) {
+            const sessionData = { sessionId: payload.sessionId, expiresAt: payload.expiresAt };
+            login(payload.user, payload.token, sessionData);
+            const u = payload.user;
+            if (u.userType === "freelancer") navigate("/freelancerhomepage");
+            else if (u.userType === "client") navigate("/clienthomepage");
+            else if (u.userType === "agency") navigate("/agencyhomepage");
+            else navigate("/");
+          } else {
+            handleOTPVerificationSuccess(payload);
+          }
+        }}
         onBack={handleOTPBack}
-        type="email"
+        type={pendingUser.email ? "login" : "email"}
       />
     );
   }
@@ -187,10 +197,13 @@ export function LoginForm({ className, ...props }: React.ComponentProps<"div">) 
               </Field>
 
               <Field>
-                <div className="flex items-center">
+                <div className="flex items-center gap-2">
                   <FieldLabel htmlFor="password">Password</FieldLabel>
                   <a href="/forgot-password" className="ml-auto text-sm underline-offset-4 hover:underline">
                     Forgot your password?
+                  </a>
+                  <a href="/login/code" className="text-sm underline-offset-4 hover:underline text-blue-600">
+                    Use email code instead
                   </a>
                 </div>
                 <Input

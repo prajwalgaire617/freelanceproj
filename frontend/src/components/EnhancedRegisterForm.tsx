@@ -1,6 +1,5 @@
 import React, { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -9,13 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Field,
-  FieldDescription,
-  FieldGroup,
-  FieldLabel,
-  FieldSeparator,
-} from "@/components/ui/field";
+import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
@@ -24,7 +17,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useAuth } from "@/context/AuthContext";
 import axiosInstance from "@/api/axios";
 import OAuthButtons from "@/components/auth/OAuthButtons";
-import { Plus, X, Upload, Camera, User } from "lucide-react";
+import { Plus, X, Upload, User } from "lucide-react";
+import OTPVerification from "@/components/OTPVerification";
 
 interface Experience {
   id: string;
@@ -108,6 +102,25 @@ export const EnhancedRegisterForm: React.FC = () => {
   const totalSteps = 3;
   const [oauthLoading, setOauthLoading] = useState(false);
   const [oauthConfig, setOauthConfig] = useState({ googleEnabled: false, facebookEnabled: false, appleEnabled: false });
+  const [showOTP, setShowOTP] = useState(false);
+  const [registeredEmail, setRegisteredEmail] = useState<string>("");
+
+  // Fetch OAuth configuration on mount (must be before any conditional return to preserve hooks order)
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const res = await axiosInstance.get('/auth/oauth-urls');
+        const cfg = res.data?.data?.configured;
+        if (cfg) {
+          setOauthConfig({
+            googleEnabled: !!cfg.google,
+            facebookEnabled: !!cfg.facebook,
+            appleEnabled: !!cfg.apple,
+          });
+        }
+      } catch {}
+    })();
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { id, value } = e.target;
@@ -256,18 +269,16 @@ export const EnhancedRegisterForm: React.FC = () => {
         },
       });
 
+      if (response.data.requiresVerification) {
+        setRegisteredEmail(response.data.email || formData.email);
+        setShowOTP(true);
+        return;
+      }
+
+      // Fallback: if backend ever returns a token (not expected now)
       const { user, token, sessionId, expiresAt } = response.data;
-
-      // Create session data object
-      const sessionData = {
-        sessionId,
-        expiresAt
-      };
-
-      // Email verification disabled: proceed to login immediately
+      const sessionData = { sessionId, expiresAt };
       login(user, token, sessionData);
-
-      // Redirect based on role
       if (user.userType === "freelancer") navigate("/freelancerhomepage");
       else if (user.userType === "client") navigate("/clienthomepage");
       else if (user.userType === "agency") navigate("/agencyhomepage");
@@ -280,6 +291,20 @@ export const EnhancedRegisterForm: React.FC = () => {
       setLoading(false);
     }
   };
+
+  if (showOTP && registeredEmail) {
+    return (
+      <OTPVerification
+        email={registeredEmail}
+        type="email"
+        onBack={() => setShowOTP(false)}
+        onVerificationSuccess={() => {
+          // On successful verification, navigate to login for first signin
+          navigate('/login');
+        }}
+      />
+    );
+  }
 
   // OAuth handlers
   const handleGoogleLogin = () => {
@@ -300,22 +325,7 @@ export const EnhancedRegisterForm: React.FC = () => {
     window.location.href = `${base}/auth/apple`;
   };
 
-  // Fetch OAuth configuration on mount
-  React.useEffect(() => {
-    (async () => {
-      try {
-        const res = await axiosInstance.get('/auth/oauth-urls');
-        const cfg = res.data?.data?.configured;
-        if (cfg) {
-          setOauthConfig({
-            googleEnabled: !!cfg.google,
-            facebookEnabled: !!cfg.facebook,
-            appleEnabled: !!cfg.apple,
-          });
-        }
-      } catch {}
-    })();
-  }, []);
+  
 
   const renderStep1 = () => (
     <div className="space-y-6">

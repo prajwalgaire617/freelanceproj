@@ -12,6 +12,7 @@
   "dependencies": {
     "@ckeditor/ckeditor5-build-classic": "^41.4.2",
     "@ckeditor/ckeditor5-react": "^11.0.0",
+    "@jitsi/react-sdk": "^1.4.4",
     "@novu/notification-center": "^2.0.0",
     "@novu/react": "^3.10.1",
     "@radix-ui/react-avatar": "^1.1.10",

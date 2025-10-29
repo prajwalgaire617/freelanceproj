@@ -2,7 +2,12 @@
 
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.createTable('conversations', {
+    // Create table if not exists
+    const [tables] = await queryInterface.sequelize.query("SHOW TABLES LIKE 'conversations'");
+    const tableExists = Array.isArray(tables) && tables.length > 0;
+
+    if (!tableExists) {
+      await queryInterface.createTable('conversations', {
       id: {
         allowNull: false,
         autoIncrement: true,
@@ -63,29 +68,37 @@ module.exports = {
         type: Sequelize.DATE,
         defaultValue: Sequelize.literal('CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP')
       }
-    });
+      });
+    }
+
+    // Helper to add index if not exists
+    async function addIndexIfMissing(indexName, options) {
+      const [rows] = await queryInterface.sequelize.query(
+        `SHOW INDEX FROM conversations WHERE Key_name = '${indexName}'`
+      );
+      const exists = Array.isArray(rows) && rows.length > 0;
+      if (!exists) {
+        await queryInterface.addIndex('conversations', { ...options, name: indexName });
+      }
+    }
 
     // Add unique constraint to ensure only one conversation between two users
-    await queryInterface.addIndex('conversations', {
+    await addIndexIfMissing('unique_conversation_participants', {
       fields: ['participant1Id', 'participant2Id'],
       unique: true,
-      name: 'unique_conversation_participants'
     });
 
     // Add index for faster queries
-    await queryInterface.addIndex('conversations', {
+    await addIndexIfMissing('idx_conversations_participant1', {
       fields: ['participant1Id'],
-      name: 'idx_conversations_participant1'
     });
 
-    await queryInterface.addIndex('conversations', {
+    await addIndexIfMissing('idx_conversations_participant2', {
       fields: ['participant2Id'],
-      name: 'idx_conversations_participant2'
     });
 
-    await queryInterface.addIndex('conversations', {
+    await addIndexIfMissing('idx_conversations_last_message', {
       fields: ['lastMessageAt'],
-      name: 'idx_conversations_last_message'
     });
   },
 

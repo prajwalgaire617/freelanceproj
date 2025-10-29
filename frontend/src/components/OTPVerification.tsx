@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import axiosInstance from '@/api/axios';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
@@ -6,9 +7,9 @@ import { Loader2, Mail, ArrowLeft } from 'lucide-react';
 
 interface OTPVerificationProps {
   email: string;
-  onVerificationSuccess: (user: any) => void;
+  onVerificationSuccess: (payload: any) => void;
   onBack: () => void;
-  type: 'email' | 'password';
+  type: 'email' | 'password' | 'login';
 }
 
 const OTPVerification: React.FC<OTPVerificationProps> = ({
@@ -64,36 +65,32 @@ const OTPVerification: React.FC<OTPVerificationProps> = ({
     setError('');
 
     try {
-      const endpoint = type === 'email' ? '/api/auth/verify-email' : '/api/auth/reset-password';
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email,
-          otp: otpString,
-          ...(type === 'password' && { password: 'temp' }) // Will be handled separately
-        }),
+      const endpoint = type === 'email'
+        ? '/auth/verify-email'
+        : type === 'password'
+          ? '/auth/reset-password'
+          : '/auth/login/otp/verify';
+      const { data } = await axiosInstance.post(endpoint, {
+        email,
+        otp: otpString,
+        ...(type === 'password' && { password: 'temp' }) // Placeholder: will be handled on next screen
       });
 
-      const data = await response.json();
-
-      if (response.ok) {
-        setSuccess(data.message);
-        if (type === 'email') {
-          onVerificationSuccess(data.user);
-        } else {
-          // For password reset, redirect to new password form
-          setTimeout(() => {
-            onVerificationSuccess({ email, otp: otpString });
-          }, 1000);
-        }
+      setSuccess(data.message);
+      if (type === 'email') {
+        onVerificationSuccess(data.user);
+      } else if (type === 'login') {
+        // Pass through full payload including token and session
+        onVerificationSuccess(data);
       } else {
-        setError(data.error || 'Verification failed');
+        // For password reset, redirect to new password form
+        setTimeout(() => {
+          onVerificationSuccess({ email, otp: otpString });
+        }, 1000);
       }
-    } catch (error) {
-      setError('Network error. Please try again.');
+    } catch (error: any) {
+      const apiError = error?.response?.data?.error || error?.response?.data?.message;
+      setError(apiError || 'Verification failed');
     } finally {
       setLoading(false);
     }
@@ -104,25 +101,18 @@ const OTPVerification: React.FC<OTPVerificationProps> = ({
     setError('');
 
     try {
-      const endpoint = type === 'email' ? '/api/auth/resend-verification' : '/api/auth/forgot-password';
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email }),
-      });
+      const endpoint = type === 'email'
+        ? '/auth/resend-verification'
+        : type === 'password'
+          ? '/auth/forgot-password'
+          : '/auth/login/otp/request';
+      const { data } = await axiosInstance.post(endpoint, { email });
 
-      const data = await response.json();
-
-      if (response.ok) {
-        setSuccess(data.message);
-        setCountdown(60); // 60 seconds cooldown
-      } else {
-        setError(data.error || 'Failed to resend OTP');
-      }
-    } catch (error) {
-      setError('Network error. Please try again.');
+      setSuccess(data.message);
+      setCountdown(60); // 60 seconds cooldown
+    } catch (error: any) {
+      const apiError = error?.response?.data?.error || error?.response?.data?.message;
+      setError(apiError || 'Failed to resend OTP');
     } finally {
       setResendLoading(false);
     }
@@ -159,7 +149,7 @@ const OTPVerification: React.FC<OTPVerificationProps> = ({
                 {otp.map((digit, index) => (
                   <Input
                     key={index}
-                    ref={(el) => (inputRefs.current[index] = el)}
+                    ref={(el) => { inputRefs.current[index] = el; }}
                     type="text"
                     inputMode="numeric"
                     pattern="[0-9]*"

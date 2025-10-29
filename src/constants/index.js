@@ -60,7 +60,9 @@ const MESSAGE_TYPES = {
   TEXT: 'text',
   IMAGE: 'image',
   FILE: 'file',
-  SYSTEM: 'system'
+  SYSTEM: 'system',
+  CONTRACT: 'contract',
+  VIDEO_CALL: 'video_call'
 };
 
 // Payment Schedules

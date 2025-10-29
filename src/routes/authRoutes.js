@@ -201,6 +201,10 @@ router.post('/register', upload.single('profileImage'), validateUserRegistration
  */
 router.post('/login', validateUserLogin, authController.login);
 
+// Passwordless email OTP login
+router.post('/login/otp/request', authController.requestLoginOTP);
+router.post('/login/otp/verify', authController.verifyLoginOTP);
+
 // @route   POST /api/auth/verify-email
 // @desc    Verify email with OTP
 // @access  Public
