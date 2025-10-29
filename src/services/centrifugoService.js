@@ -71,18 +71,25 @@ class CentrifugoService {
     try {
       console.log(`🔧 Publishing to Centrifugo API: ${this.apiUrl}`);
       console.log(`📡 Channel: ${channel}`);
-      console.log(`📦 Data:`, JSON.stringify(data).substring(0, 100) + '...');
+      console.log(`📦 Data:`, JSON.stringify(data).substring(0, 200) + (JSON.stringify(data).length > 200 ? '...' : ''));
       
       const response = await this.client.post('/publish', {
         channel: channel,
         data: data
       });
       
-      console.log(`✅ Publish result:`, response.data);
+      console.log(`✅ Publish successful to channel '${channel}'`);
+      console.log(`📋 Publish result:`, response.data?.result || response.data);
       return true;
     } catch (error) {
-      console.error('❌ Error publishing message via Centrifugo:', error.response?.data || error.message);
-      throw new ExternalServiceError('Centrifugo', 'Failed to publish message');
+      const errorMsg = error.response?.data?.error || error.message || 'Unknown error';
+      const errorCode = error.response?.status || 'N/A';
+      console.error(`❌ Error publishing message via Centrifugo (status: ${errorCode}):`, errorMsg);
+      console.error(`❌ Request details - Channel: ${channel}, API URL: ${this.apiUrl}`);
+      console.error(`❌ Error details:`, error.response?.data || error);
+      
+      // Still throw but provide detailed information
+      throw new ExternalServiceError('Centrifugo', `Failed to publish message to channel '${channel}': ${errorMsg}`);
     }
   }
 

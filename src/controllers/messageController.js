@@ -148,8 +148,12 @@ const sendMessage = asyncHandler(async (req, res) => {
     
     console.log(`✅ Message broadcasted successfully to ${conversationChannel}`);
   } catch (error) {
-    console.error('❌ Error broadcasting message to Centrifugo:', error);
-    // Don't fail the request if broadcasting fails
+    console.error('⚠️ Failed to broadcast message to Centrifugo:', {
+      channel: conversationChannel,
+      error: error.message,
+      details: error.response?.data || error
+    });
+    // Don't fail the request if broadcasting fails - message is saved in DB
   }
 
   // 🔔 Send real-time notification to receiver
@@ -181,8 +185,12 @@ const sendMessage = asyncHandler(async (req, res) => {
     });
     console.log(`✅ Notification successfully sent to user:${receiverId}`);
   } catch (error) {
-    console.error('❌ Error sending notification:', error);
-    console.error('❌ Error details:', error.message);
+    console.error('⚠️ Failed to send notification to Centrifugo:', {
+      userChannel: userChannel,
+      receiverId: receiverId,
+      error: error.message,
+      details: error.response?.data || error
+    });
     // Don't fail the request if notification fails
   }
 

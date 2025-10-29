@@ -3,6 +3,11 @@ import axiosInstance from '../api/axios';
 
 class CentrifugoService {
   private centrifuge: Centrifuge | null = null;
+
+  // Expose Centrifuge instance for event listening (read-only)
+  getCentrifuge(): Centrifuge | null {
+    return this.centrifuge;
+  }
   private subscriptions: Map<string, any> = new Map();
   private desiredSubscriptions: Map<string, { kind: 'user'|'conversation'; handler: (data:any)=>void; currentUserId?: string; otherUserId?: string } > = new Map();
   private isConnecting: boolean = false;
@@ -101,20 +106,9 @@ class CentrifugoService {
       }
       console.log('🔧 Using Centrifugo URL:', resolvedUrl);
 
-      // Preflight: check Centrifugo health endpoint (best-effort). If it fails, still try WS.
-      try {
-        const u = new URL(resolvedUrl);
-        const healthUrl = `${u.protocol.replace('ws', 'http')}//${u.host}/health`;
-        const ctl = new AbortController();
-        const t = setTimeout(() => ctl.abort(), 1500);
-        const healthRes = await fetch(healthUrl, { signal: ctl.signal });
-        clearTimeout(t);
-        if (!healthRes.ok) {
-          console.warn('⚠️ Centrifugo health check failed (non-blocking):', healthRes.status);
-        }
-      } catch (e) {
-        console.warn('⚠️ Centrifugo health check error (non-blocking), proceeding to WS connect', e);
-      }
+      // Skip health check - Centrifugo doesn't have a /health endpoint by default
+      // We'll handle connection errors in the connection handlers instead
+      console.log('⏭️ Skipping health check, proceeding directly to WebSocket connection');
 
       // Create Centrifuge client
       this.centrifuge = new Centrifuge(resolvedUrl, {
@@ -142,19 +136,20 @@ class CentrifugoService {
             }
           });
         } catch (e) {
-          console.warn('Failed to re-subscribe desired channels:', e);
+          console.error('❌ Failed to re-subscribe desired channels:', e);
         }
       });
 
       this.centrifuge.on('disconnected', (ctx: any) => {
-        console.log('❌ Disconnected from Centrifugo', ctx);
-        // Let Centrifuge auto-reconnect; do not disable session.
+        console.log('⚠️ Disconnected from Centrifugo:', ctx?.reason || 'unknown');
+        // Centrifuge will automatically attempt to reconnect
       });
 
       this.centrifuge.on('error', (ctx: any) => {
         const t = ctx?.type || 'unknown';
-        console.warn('❌ Centrifugo error', t);
-        // Allow built-in reconnect; do not disable session.
+        const msg = ctx?.message || 'unknown';
+        console.error('❌ Centrifugo error:', t, msg);
+        // Don't disable session - let Centrifuge handle auto-reconnect
       });
 
       // Connect
@@ -162,8 +157,9 @@ class CentrifugoService {
 
       console.log('🚀 Centrifugo service initialized for user:', userId);
     } catch (error) {
-      console.warn('Failed to connect to Centrifugo (non-fatal):', error);
-      this.markSessionDisabled();
+      console.error('❌ Failed to connect to Centrifugo:', error);
+      // Don't disable session on connection failure - let it retry automatically
+      // This allows the connection to be re-attempted on subsequent calls
       throw error;
     }
   }
@@ -190,15 +186,48 @@ class CentrifugoService {
     const channelName = `user:${userId}`;
     console.log('🔔 Subscribing to user notifications:', channelName);
 
-    // Check if subscription already exists
+    // Check if subscription already exists in Centrifuge client
     let subscription = this.centrifuge.getSubscription(channelName);
     
     if (subscription) {
       console.log('🔄 User notification subscription already exists, re-attaching handlers');
-      subscription.removeAllListeners();
-    } else {
-      subscription = this.centrifuge.newSubscription(channelName);
+      // Remove all old listeners but keep the subscription
+      subscription.removeAllListeners('publication');
+      subscription.removeAllListeners('subscribed');
+      subscription.removeAllListeners('error');
+      subscription.removeAllListeners('unsubscribed');
+      
+      // Add new handlers
+      subscription.on('publication', (_ctx) => {
+        console.log('🔔 Notification received:', _ctx.data);
+        onNotification(_ctx.data);
+      });
+
+      subscription.on('subscribed', (_ctx) => {
+        console.log('✅ Subscription re-activated for user notifications:', channelName);
+      });
+
+      subscription.on('error', (_ctx) => {
+        console.error('❌ User notification subscription error:', _ctx);
+      });
+
+      subscription.on('unsubscribed', (_ctx) => {
+        console.warn('⚠️ Unsubscribed from user notifications:', channelName, ':', _ctx);
+      });
+
+      this.subscriptions.set(channelName, subscription);
+      
+      // Ensure subscription is active
+      if (subscription.state !== 'subscribed' && subscription.state !== 'subscribing') {
+        console.log('🔄 Re-subscribing to user channel (state:', subscription.state, ')');
+        subscription.subscribe();
+      }
+      return subscription;
     }
+
+    // Create new subscription
+    console.log('✨ Creating new subscription for user notifications:', channelName);
+    subscription = this.centrifuge.newSubscription(channelName);
 
     subscription.on('publication', (_ctx) => {
       console.log('🔔 Notification received:', _ctx.data);
@@ -211,6 +240,10 @@ class CentrifugoService {
 
     subscription.on('error', (_ctx) => {
       console.error('❌ User notification subscription error:', _ctx);
+    });
+
+    subscription.on('unsubscribed', (_ctx) => {
+      console.warn('⚠️ Unsubscribed from user notifications:', channelName, ':', _ctx);
     });
 
     subscription.subscribe();
@@ -265,47 +298,65 @@ class CentrifugoService {
     let subscription = this.centrifuge.getSubscription(channelName);
 
     if (subscription) {
-      console.log('🔄 Subscription already exists, removing old listeners and re-attaching');
-      // Remove all existing listeners to avoid duplicates
-      subscription.removeAllListeners();
+      console.log('🔄 Subscription already exists, re-attaching handlers');
+      // Remove old publication listeners but keep the subscription
+      subscription.removeAllListeners('publication');
+      subscription.removeAllListeners('subscribed');
+      subscription.removeAllListeners('error');
+      subscription.removeAllListeners('unsubscribed');
       
-      // Re-attach handlers
+      // Add new handlers
       subscription.on('publication', (ctx: any) => {
-        console.log('📨 Message received on existing subscription:', ctx.data);
+        console.log('📨 Message received on existing subscription:', channelName, ctx.data);
         onMessage(ctx.data);
       });
 
       subscription.on('subscribed', (_ctx) => {
-        console.log('✅ Re-subscribed to channel:', channelName);
+        console.log('✅ Subscription re-activated for channel:', channelName);
       });
 
       subscription.on('error', (_ctx) => {
-        console.error('❌ Subscription error:', _ctx);
+        console.error('❌ Subscription error for', channelName, ':', _ctx);
+      });
+
+      subscription.on('unsubscribed', (_ctx) => {
+        console.warn('⚠️ Unsubscribed from', channelName, ':', _ctx);
       });
 
       this.subscriptions.set(channelName, subscription);
+      
+      // Ensure subscription is active
+      if (subscription.state !== 'subscribed' && subscription.state !== 'subscribing') {
+        console.log('🔄 Re-subscribing to channel (state:', subscription.state, ')');
+        subscription.subscribe();
+      }
       return subscription;
     }
 
     // Create new subscription
-    console.log('✨ Creating new subscription');
+    console.log('✨ Creating new subscription for', channelName);
     subscription = this.centrifuge.newSubscription(channelName);
 
-    subscription.on('publication', (_ctx: any) => {
-      console.log('📨 Message received on new subscription:', _ctx.data);
-      onMessage(_ctx.data);
+    // Set up event handlers
+    subscription.on('publication', (ctx: any) => {
+      console.log('📨 Message received on subscription:', channelName, ctx.data);
+      onMessage(ctx.data);
     });
 
     subscription.on('subscribed', (_ctx) => {
-      console.log('✅ Subscribed to channel:', channelName);
+      console.log('✅ Successfully subscribed to channel:', channelName);
     });
 
     subscription.on('error', (_ctx) => {
-      console.error('❌ Subscription error:', _ctx);
+      console.error('❌ Subscription error for', channelName, ':', _ctx);
     });
 
-    subscription.subscribe();
+    subscription.on('unsubscribed', (_ctx) => {
+      console.warn('⚠️ Unsubscribed from', channelName, ':', _ctx);
+    });
 
+    // Subscribe and store
+    subscription.subscribe();
     this.subscriptions.set(channelName, subscription);
 
     return subscription;
