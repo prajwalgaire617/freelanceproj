@@ -106,11 +106,9 @@ class CentrifugoService {
       }
       console.log('🔧 Using Centrifugo URL:', resolvedUrl);
 
-<<<<<<< HEAD
       // Skip health check - Centrifugo doesn't have a /health endpoint by default
       // We'll handle connection errors in the connection handlers instead
       console.log('⏭️ Skipping health check, proceeding directly to WebSocket connection');
-=======
       // Optional: Preflight health check (disabled by default to avoid CORS noise in browser)
       try {
         const ENV: any = (import.meta as any).env || {};
@@ -124,10 +122,10 @@ class CentrifugoService {
           await fetch(healthUrl, { signal: ctl.signal, mode: 'no-cors' as RequestMode });
           clearTimeout(t);
         }
-      } catch (_e) {
+      } catch (e) {
         // Ignore health errors; proceed to WS connect regardless
+        console.warn('⚠️ Health check failed; proceeding to WebSocket connection:', e);
       }
->>>>>>> 2700a08 (till otp)
 
       // Create Centrifuge client
       this.centrifuge = new Centrifuge(resolvedUrl, {
@@ -424,13 +422,42 @@ class CentrifugoService {
     if (this.desiredSubscriptions.has(channelName)) this.desiredSubscriptions.delete(channelName);
   }
 
-  async sendMessage(receiverId: string, content: string) {
+  /**
+   * Send a message via API. Supports text, file, and video_call messages.
+   * @param receiverId - ID of the receiver
+   * @param content - Message content (string or object)
+   * @param messageType - Type of message ('text', 'file', 'video_call', etc.)
+   * @param attachments - Optional array of File objects for file messages
+   */
+  async sendMessage(receiverId: string, content: string | object, messageType: string = 'text', attachments?: File[]) {
     try {
-      const response = await axiosInstance.post('/messages', {
-        receiverId,
-        content
-      });
-
+      const token = localStorage.getItem('token');
+      let response;
+      if (attachments && attachments.length > 0) {
+        // File message: use FormData
+        const formData = new FormData();
+        formData.append('receiverId', receiverId.toString());
+        formData.append('content', typeof content === 'string' ? content : JSON.stringify(content));
+        formData.append('messageType', messageType);
+        attachments.forEach(file => {
+          formData.append('files', file);
+        });
+        response = await axiosInstance.post('/messages', formData, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'multipart/form-data'
+          }
+        });
+      } else {
+        // Text or video_call message: send JSON
+        response = await axiosInstance.post('/messages', {
+          receiverId,
+          content: typeof content === 'string' ? content : JSON.stringify(content),
+          messageType
+        }, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      }
       console.log('✅ Message sent:', response.data);
       return response.data;
     } catch (error) {

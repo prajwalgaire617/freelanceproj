@@ -20,7 +20,6 @@ interface Message {
   sender: "me" | "them";
   text: string;
   time: string;
-<<<<<<< HEAD
   files?: { 
     filename?: string;
     originalName?: string;
@@ -30,11 +29,7 @@ interface Message {
     url: string;
     size?: number;
   }[];
-  messageType?: 'text' | 'image' | 'file' | 'contract';
-=======
-  files?: { name: string; type: string; url: string }[];
   messageType?: 'text' | 'image' | 'file' | 'contract' | 'video_call';
->>>>>>> 2700a08 (till otp)
   contractId?: number;
   content?: string; // Raw content for contract messages
 }
@@ -644,30 +639,6 @@ export function MessagingInterface() {
       </Card>
 
       {/* Chat Area */}
-<<<<<<< HEAD
-      <Card className="md:col-span-2 flex flex-col h-full overflow-hidden min-w-0">
-        <CardHeader className="border-b flex-shrink-0">
-          <div className="flex items-center gap-3">
-            <Avatar className="flex-shrink-0">
-              <AvatarImage src={selectedConversation.img} />
-              <AvatarFallback>{selectedConversation.name[0]}</AvatarFallback>
-            </Avatar>
-            <CardTitle 
-              className={
-                user?.userType === 'client' && selectedConversation.userType === 'freelancer'
-                  ? "cursor-pointer hover:text-primary transition-colors"
-                  : "cursor-default"
-              }
-              onClick={() => {
-                // Only allow clients to navigate to freelancer profiles
-                if (user?.userType === 'client' && selectedConversation.userType === 'freelancer') {
-                  navigate(`/freelancer-profile/${selectedConversationId}`);
-                }
-              }}
-            >
-              {selectedConversation.name}
-            </CardTitle>
-=======
       <Card className="md:col-span-2 flex flex-col overflow-y-auto">
         <CardHeader className="border-b">
           <div className="flex items-center justify-between">
@@ -701,7 +672,6 @@ export function MessagingInterface() {
               <Video className="w-4 h-4" />
               Start Video Call
             </Button>
->>>>>>> 2700a08 (till otp)
           </div>
         </CardHeader>
 

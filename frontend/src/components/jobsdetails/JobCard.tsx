@@ -1,4 +1,6 @@
 import React from "react";
+import { stripHtml } from "@/utils/stripHtml";
+import { sanitizeHtml } from "@/utils/sanitizeHtml";
 import {
   Card,
   CardHeader,
@@ -52,8 +54,9 @@ const JobCard: React.FC<JobCardProps> = ({ job, onViewDetails }) => {
       </CardHeader>
 
       <CardContent className="grid gap-3">
+        {/* Render job description as plain text, no HTML tags */}
         <p className="text-sm text-muted-foreground line-clamp-3">
-          {job.description}
+          {stripHtml(job.description)}
         </p>
 
         {job.skills?.length > 0 && (

@@ -1,3 +1,4 @@
+import { sanitizeHtml } from "@/utils/sanitizeHtml";
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import axiosInstance from "@/api/axios";
@@ -297,7 +298,11 @@ const ClientContractsPage: React.FC = () => {
               {/* Description */}
               <div>
                 <h4 className="font-semibold mb-2">Project Description</h4>
-                <p className="text-sm">{selectedContract.workDescription}</p>
+                {/* Render HTML safely. In production, use a robust sanitizer like DOMPurify. */}
+                <div
+                  className="text-sm prose max-w-none"
+                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(selectedContract.workDescription) }}
+                />
               </div>
 
               {/* Payment Details */}
